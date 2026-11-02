@@ -336,6 +336,40 @@ not embed access tokens in command-line arguments or resubmit merely because dec
 failed. Until the local transport is reviewed and packaged, the documented end-user route
 remains the Hermes skill, with the model-usage distinction above.
 
+### Dedicated bridge profile
+
+Use a separate `dots-bridge` profile to keep bridge MCP configuration and client state
+apart from normal Hermes conversations. This is configuration separation, **not** an
+inference firewall. Official [Hermes profile documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/profiles.md)
+supports blank profiles and explicit selection:
+
+```sh
+hermes profile create dots-bridge
+hermes -p dots-bridge mcp login hermes-dots-bridge
+```
+
+These are operator setup commands, not send commands. Check the installed version's help
+first; create only if absent, configure the bridge MCP entry in that profile before login,
+and complete authorization using supported UI. Avoid cloning a normal profile or changing
+the sticky default. Do not add a model provider for transport-only use. Profiles can still
+have access to shared/root provider logins or inherited process environment; merely omitting
+`model`/`provider` or leaving a local `.env` empty does not establish no-inference behavior.
+
+For the requested deterministic mode, the eventual reviewed wrapper must select this
+profile explicitly, load only bridge MCP/OAuth configuration and invoke MCP operations
+directly. It must never start `hermes chat`, a gateway agent, skill execution, provider
+selection, fallback routing or model initialization. The dedicated profile by itself cannot
+guarantee that property; the entry point and its call path must establish it.
+
+Before publishing the local wrapper, verify its exact invocation and sanitized source,
+SDK result decoding, bounded waits, saved request IDs and OAuth error handling. Tests must
+fail if agent/provider initialization is attempted and must show a synthetic direct
+send/wait/read succeeds without model credentials or model calls. Keep bridge dependencies
+isolated and do not install them into Hermes. This review is pending the local worker's
+verified wrapper; no no-provider direct CLI is claimed as implemented yet. The second live
+direct request's dot reply has been reported, but its final Hermes receipt is still pending
+confirmation, so only the first complete round trip is counted above.
+
 ## 8. Renewal and client compatibility checklist
 
 The bridge is a resource server, not an OAuth client. It never issues or stores access or
