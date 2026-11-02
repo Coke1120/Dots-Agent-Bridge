@@ -1,3 +1,5 @@
+> Updated status: separate Mac mini integration verified a manual real round trip. Official event-source discovery now exposes request.created. Use [automatic operation](automatic-operation.md) for the remaining persistent HTTPS, event-subscription and actual autonomous-wakeup gates; this historical staged handoff is not evidence those gates have passed.
+
 # Secure MCP Tunnel handoff — Mac mini Hermes test
 
 **Active target: the user's Mac mini running Hermes.** This replaces the earlier MBA test target. Cloud work prepares code and instructions only; the separate Mac mini task owns local preflight/installation. Do not duplicate its work or use another machine without new direction.

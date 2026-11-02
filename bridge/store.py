@@ -187,6 +187,33 @@ class Store:
                           key=lambda x: x["revision"])
             return {"responses": rows[:10], "next_after_revision": rows[9]["revision"] if len(rows) > 10 else None}
 
+    def wait_snapshot(self, p, a):
+        """Short transaction only; HTTP layer sleeps without holding SQLite lock."""
+        with self.transaction():
+            self.authorize(p, "bridge:submit")
+            self.authorize(p, "bridge:read")
+            self.maintain()
+            r = self.get("request", a["request_id"], p.owner)
+            rows = sorted([x for x in self.all("response", p.owner)
+                           if x["request_id"] == r["id"] and x["revision"] > a.get("after_revision", 0)],
+                          key=lambda x: x["revision"])
+            subscriptions = 0
+            for sub in self.all("subscription", p.owner):
+                if not sub["active"] or sub["expires"] <= self.clock():
+                    continue
+                try:
+                    principal = self.policy.resolve(sub["subject"], sub["client"], sub["scopes"])
+                    self.authorize(principal, "bridge:subscribe")
+                    if principal.owner == sub["owner"] and principal.role == "dot":
+                        subscriptions += 1
+                except Denied:
+                    pass
+            return {"request_id": r["id"], "conversation_id": r["conversation_id"],
+                    "state": r["state"], "revision": r["revision"], "responses": rows[:10],
+                    "next_after_revision": rows[9]["revision"] if len(rows) > 10 else None,
+                    "ready": bool(rows) or r["state"] in TERMINAL | {"needs_input"},
+                    "timed_out": False, "active_subscriptions": subscriptions}
+
     def respond(self, p, a):
         with self.transaction():
             self.authorize(p, "bridge:respond")

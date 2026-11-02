@@ -53,11 +53,15 @@ def test_dual_audience_synthetic_acceptance(env):
                     assert env['store'].deliver_once()
                     pending = decoded(await hermes.call_tool('get_request', {'request_id': request['id']}))
                     assert pending['request']['state'] == 'delivered' and pending['latest_responses'] == []
+                    waiting = asyncio.create_task(hermes.call_tool('wait_response', {'request_id': request['id'], 'timeout_seconds': 5}))
                     context = decoded(await dot.call_tool('get_request', {'request_id': request['id']}))
                     reply = {'request_id': request['id'], 'content': 'bridge-ok', 'state': 'completed',
                              'expected_revision': context['request']['revision'], 'idempotency_key': 'synthetic-reply-001'}
                     first = decoded(await dot.call_tool('record_response', reply))
                     assert decoded(await dot.call_tool('record_response', reply)) == first
+                    waited = decoded(await waiting)
+                    assert waited['ready'] and not waited['timed_out']
+                    assert waited['responses'][0]['content'] == 'bridge-ok'
                     received = decoded(await hermes.call_tool('list_responses', {'request_id': request['id']}))
                     assert len(received['responses']) == 1 and received['responses'][0]['content'] == 'bridge-ok'
                     follow = decoded(await hermes.call_tool('submit_message', {

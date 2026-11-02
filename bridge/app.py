@@ -14,6 +14,7 @@ from .callback import Callback, CallbackError
 from .protocol import Protocol
 from .wire import MODERN, WireError, complete, request_version
 from .store import Conflict, Store
+from .waiting import Waiter
 
 logger = logging.getLogger(__name__)
 MAX_BODY = 65536
@@ -48,6 +49,7 @@ def create_discovery_app(resource, issuer):
 
 def create_app(store, auth, resource, issuer, run_worker=True):
     protocol = Protocol(store)
+    waiter = Waiter()
     origin = urlsplit(resource).scheme + "://" + urlsplit(resource).netloc
     metadata_url = origin + "/.well-known/oauth-protected-resource"
 
@@ -125,7 +127,10 @@ def create_app(store, auth, resource, issuer, run_worker=True):
         try:
             if version == MODERN and msg["method"] == "initialize":
                 raise KeyError("legacy_method")
-            result = await run_in_threadpool(protocol.dispatch, p, msg["method"], params)
+            if msg["method"] == "tools/call" and params.get("name") == "wait_response":
+                result = await waiter.run(request, auth, p, protocol, params)
+            else:
+                result = await run_in_threadpool(protocol.dispatch, p, msg["method"], params)
             if version == MODERN:
                 result = complete(result, msg["method"])
             return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result}, headers={"Cache-Control": "no-store"})

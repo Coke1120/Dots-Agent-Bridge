@@ -1,8 +1,12 @@
 # hermes-dots-bridge
 
-**Implemented, awaiting connection validation.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
+**Manual real round trip verified; automatic event wakeup awaiting connection validation.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
 Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
+
+## Automatic operation
+
+Start with the [automatic-operation guide](docs/automatic-operation.md): native Hermes `/talk-to-dot` skill, bounded `wait_response`, official event automation setup, local HTTPS, disabled LaunchAgent templates, status, key rotation and recovery. The official event-source discovery has exposed `request.created`; no real automatic subscription/wakeup round trip has yet been verified.
 
 ## Mac local installation
 
@@ -27,7 +31,7 @@ The lock includes development/test dependencies. Tests use synthetic principals,
 
 ## Implemented
 
-- Stateless Streamable HTTP at `/mcp`, negotiated MCP `2025-11-25`, scoped tool discovery and MCP Events. No MCP 2.0 claim.
+- Stateless Streamable HTTP at `/mcp`, modern MCP `2026-07-28` discovery/per-request metadata plus legacy `2025-11-25`, scoped tools and MCP Events.
 - External OAuth resource server: protected resource metadata, RS256 signature/issuer/audience/time validation, operator-pinned JWKS URL, per-client roles and owner grants. No anonymous or static-token production mode.
 - Owner-scoped conversations, ordered requests/responses, idempotent writes, revision conflict checks, cancellation, bounded retention and a durable SQLite outbox.
 - Signed subscription challenge, deterministic subscriptions, expiry/unsubscribe, encrypted signing secrets and rotation overlap.
@@ -38,6 +42,7 @@ The lock includes development/test dependencies. Tests use synthetic principals,
 | Tool | Hermes | dot | Scope |
 | --- | --- | --- | --- |
 | `submit_message`, `cancel_request` | Yes | No | `bridge:submit` |
+| `wait_response` | Yes | No | `bridge:submit` + `bridge:read` |
 | `get_request`, `list_requests`, `list_responses` | Yes | Yes | `bridge:read` |
 | `record_response` | No | Yes | `bridge:respond` |
 | `events/list`, `events/subscribe`, `events/unsubscribe` | No | Yes | `bridge:subscribe` |
@@ -48,7 +53,7 @@ Identity comes from a verified token and local operator policy, never an `owner_
 
 See [connection and external OAuth setup](docs/connection.md), [protocol and operational contract](docs/contract.md) and [verification evidence](docs/validation.md). Templates are in [examples](examples/).
 
-Decisions still required: persistent hosting/HTTPS domain, external OAuth tenant/client registrations, verified subject/client grants, callback hostname allowlist, secret-manager key, and explicit dot queue authorization. Real OAuth login, ChatGPT subscription and MBA Hermes round-trip are **unrun**. Do not treat this draft as a deployed or connected service.
+Local integration has reported authenticated ChatGPT/Hermes connections and a manual real response. Automatic operation still needs approved persistent service/trust setup, a verified callback hostname, one owner-authorized event automation and live wakeup/refresh validation. See the [approval bundle and acceptance test](docs/automatic-operation.md#6-automatic-acceptance-test-and-approval-bundle). No service is installed automatically by this repository.
 
 Run a single process with a persistent writable volume only after completing those settings:
 

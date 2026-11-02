@@ -66,10 +66,10 @@ def validate_local_resource(url):
     if not isinstance(url, str):
         raise ValueError("Local resource must be a string")
     u = urlsplit(url)
-    if (u.scheme != "http" or u.hostname != "127.0.0.1" or u.port is None
+    if (u.scheme not in ("http", "https") or u.hostname != "127.0.0.1" or u.port is None
             or not 1024 <= u.port <= 65535 or u.path != "/mcp"
             or u.username or u.password or u.query or u.fragment):
-        raise ValueError("Local resource must be http://127.0.0.1:PORT/mcp, port 1024-65535")
+        raise ValueError("Local resource must be http(s)://127.0.0.1:PORT/mcp, port 1024-65535")
     return u.port
 
 

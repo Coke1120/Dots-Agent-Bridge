@@ -1,3 +1,5 @@
+> For ongoing automatic operation, use [the updated guide](automatic-operation.md). It adds native loopback HTTPS, bounded waits, status, disabled service templates and the official event-automation workflow. Older HTTP foreground examples below are not the persistent-service default. Generated LaunchAgents now include `Disabled=true`; enabling them requires explicit local approval.
+
 # macOS local service + Hermes MCP integration
 
 **Current live-test target: Mac mini Hermes**, superseding the earlier MBA choice. Follow [the staged Secure MCP Tunnel handoff](tunnel-handoff.md) for action-time confirmations and the synthetic acceptance test.

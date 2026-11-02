@@ -16,7 +16,7 @@ def subscribe(env, **kwargs):
 def test_discovery_and_role_tool_lists(env):
     init = rpc(env, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}, "alice-dot").json()["result"]
     assert init["capabilities"] == {"tools": {}, "events": {}}
-    for who, expected in [("alice-hermes", {"submit_message", "get_request", "list_requests", "list_responses", "cancel_request"}),
+    for who, expected in [("alice-hermes", {"submit_message", "get_request", "list_requests", "list_responses", "cancel_request", "wait_response"}),
                           ("alice-dot", {"get_request", "list_requests", "list_responses", "record_response"})]:
         assert {t["name"] for t in rpc(env, "tools/list", who=who).json()["result"]["tools"]} == expected
     assert rpc(env, "events/list", who="alice-dot").json()["result"]["events"][0]["name"] == "request.created"

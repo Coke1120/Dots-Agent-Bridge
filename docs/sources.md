@@ -32,3 +32,10 @@ Hermes client path additionally inspected at the local preflight revision `c7c7e
 - [OpenAI MCP Events](https://developers.openai.com/plugins/build/mcp-events): discovery advertises events, followed by authenticated list/subscribe/unsubscribe. Existing challenge and delivery security remain unchanged.
 
 Earlier SDK 2 tests exercised only its legacy ClientSession facade. The added `Client(mode="auto")` regression exercises modern discovery and operations without initialize fallback. SDK package compatibility alone did not establish modern wire compatibility.
+
+## Automatic operation sources (2026-11-02)
+
+- [Hermes skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills): native SKILL.md directory and slash-command behavior. Repository ships a concise skill, not a patched gateway/CLI.
+- [HTTPX environment trust](https://www.python-httpx.org/environment_variables/): process-local SSL_CERT_FILE behavior. Also inspected installed SDK 2.3 httpx2/httpcore2 code for default environment trust.
+- [Tunnel trust configuration](https://github.com/openai/tunnel-client/blob/v0.0.19/docs/configuration.md): ca-bundle extends all outbound TLS trust in that process; no global plaintext exception in generated service command.
+- Official Automations tools returned this bridge as an event source and the request.created schema with empty parameters. This read-only evidence does not mean a subscription was created or a dot executed.
