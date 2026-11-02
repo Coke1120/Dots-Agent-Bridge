@@ -56,3 +56,14 @@ Local handoff: stop bridge, fetch the existing feature branch, fast-forward only
 Separate local integration reports a successful manual real round trip. Cloud added bounded wait tests for response arrival, timeout, cancellation, expiry, token expiry, policy revocation, disconnect, capacity and cross-owner/role isolation; the dual-client real-JWT synthetic rehearsal also retrieves through wait_response. TLS tests use ephemeral synthetic certificates and a real local socket-pair TLS handshake; no CA is installed. Service templates are checked for Disabled=true and no plaintext exception. Local status is checked for no database creation. Existing durable outbox/retry/restart and false-completion tests remain in the suite.
 
 Real event subscription/challenge/refresh, platform-triggered intended-dot execution, launchd persistence and the macOS HTTPS trust/audience migration are **unrun** by Cloud. No new real credentials, grants, services or automation were created. See automatic-operation.md for a staged acceptance test that does not count a manually invoked dot reply as autonomous success.
+
+## Subscription failure diagnostics
+
+Failed authenticated `events/subscribe` callback validation now logs only
+`mcp_subscription_rejected hostname=<normalized-host-or-unavailable> reason=<fixed-code>`.
+It never logs URL path/query/fragment/userinfo, tokens, signing secrets, headers, payloads
+or owner identity. `host_not_allowed` distinguishes a syntactically acceptable HTTPS URL
+from other `invalid_url` failures; the RPC error and fail-closed allowlist are unchanged.
+The hostname is untrusted diagnostic input, not permission to allow it: correlate the
+attempt with the authorized platform subscription flow and independently verify the host
+before any allowlist change. Malformed/control-character hosts use `unavailable`.

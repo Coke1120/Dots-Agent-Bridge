@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .auth import Denied, JWTAuth, Policy, SCOPES
-from .callback import Callback, CallbackError
+from .callback import Callback, CallbackError, subscription_diagnostic
 from .protocol import Protocol
 from .wire import MODERN, WireError, complete, request_version
 from .store import Conflict, Store
@@ -139,6 +139,10 @@ def create_app(store, auth, resource, issuer, run_worker=True):
         except Conflict as e:
             return error(-32602, str(e), status=400 if version == MODERN else 200)
         except CallbackError as e:
+            if msg["method"] == "events/subscribe":
+                host, reason = subscription_diagnostic(params.get("delivery", {}).get("url"),
+                                                       e.reason, store.callback.allowed_hosts)
+                logger.warning("mcp_subscription_rejected hostname=%s reason=%s", host, reason)
             return error(-32015, "CallbackEndpointError", {"reason": e.reason})
         except KeyError:
             return error(-32601, "Method not found", status=404 if version == MODERN else 200)

@@ -4,6 +4,7 @@ import hmac
 import http.client
 import ipaddress
 import json
+import re
 import secrets
 import socket
 import ssl
@@ -52,6 +53,35 @@ def validate_url(url, allowed_hosts):
         return u
     except (ValueError, TypeError):
         raise CallbackError("invalid_url") from None
+
+
+def subscription_diagnostic(url, reason, allowed_hosts):
+    """Bounded hostname and fixed reason only; never return raw URL/error text."""
+    safe_reasons = {"invalid_secret", "invalid_url", "dns_failed", "non_public_address",
+                    "payload_too_large", "response_too_large", "unreachable", "challenge_failed"}
+    reason = reason if reason in safe_reasons else "validation_failed"
+    host = "unavailable"
+    try:
+        if not isinstance(url, str) or len(url) > 2048 or any(ord(c) < 33 or ord(c) > 126 for c in url):
+            return host, reason
+        parsed = urlsplit(url)
+        candidate = parsed.hostname
+        if not candidate or len(candidate) > 253:
+            return host, reason
+        try:
+            host = ipaddress.ip_address(candidate).compressed
+        except ValueError:
+            normalized = candidate.lower().rstrip(".")
+            if all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                   for label in normalized.split(".")):
+                host = normalized
+        if reason == "invalid_url" and host != "unavailable" and candidate not in allowed_hosts:
+            # Distinguish allowlist rejection only when all other URL checks pass.
+            validate_url(url, {candidate})
+            reason = "host_not_allowed"
+    except (ValueError, TypeError, CallbackError):
+        pass
+    return host, reason
 
 
 def public_addresses(host):
