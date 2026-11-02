@@ -1,0 +1,20 @@
+{
+  "grants": [
+    {
+      "subject": "REPLACE_WITH_VERIFIED_IDP_SUBJECT",
+      "client_id": "REPLACE_WITH_HERMES_OAUTH_CLIENT_ID",
+      "owner": "private-owner",
+      "role": "hermes",
+      "enabled": false,
+      "queue_authorized": false
+    },
+    {
+      "subject": "REPLACE_WITH_VERIFIED_IDP_SUBJECT",
+      "client_id": "REPLACE_WITH_CHATGPT_OAUTH_CLIENT_ID",
+      "owner": "private-owner",
+      "role": "dot",
+      "enabled": false,
+      "queue_authorized": false
+    }
+  ]
+}

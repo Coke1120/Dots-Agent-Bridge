@@ -1,0 +1,12 @@
+# Merge into ~/.hermes/config.yaml only during the separately approved connection step.
+mcp_servers:
+  hermes-dots-bridge:
+    url: "https://bridge.example.com/mcp"
+    auth: oauth
+    oauth:
+      # Explicit pre-registration avoids granting an arbitrary dynamically registered client.
+      client_id: "${BRIDGE_HERMES_CLIENT_ID}"
+      scope: "bridge:submit bridge:read"
+      redirect_host: localhost
+      redirect_port: 27890
+    timeout: 60

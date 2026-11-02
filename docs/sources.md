@@ -1,0 +1,18 @@
+# Sources checked on 2026-11-02
+
+Primary protocol references used before implementation:
+
+- [OpenAI MCP Events](https://developers.openai.com/plugins/build/mcp-events): authenticated event discovery/subscription lifecycle, verification challenge, Standard Webhooks, callback validation, delivery/retry semantics and finite subscription grants.
+- [OpenAI authentication](https://developers.openai.com/plugins/build/auth): OAuth resource metadata, PKCE, token verification and client identification options.
+- [OpenAI connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt): custom MCP/plugin connection and actual-host validation workflow.
+- [MCP Streamable HTTP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports): initialization-based transport contract used by this implementation. MCP 2.0 is intentionally not advertised.
+- [Hermes remote MCP](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md) and [configuration reference](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/mcp-config-reference.md): remote OAuth connection, public-client configuration and local login workflow.
+- [Auth0 MCP authorization](https://auth0.com/ai/docs/mcp/get-started/authorization-for-your-mcp-server) and [access-token profiles](https://auth0.com/docs/secure/tokens/access-tokens/access-token-profiles): external provider option, resource compatibility and signed client identity claim selection. Provider setup is documented, not executed.
+- [PyJWT usage](https://pyjwt.readthedocs.io/en/stable/usage.html), [dnspython resolver](https://dnspython.readthedocs.io/en/stable/resolver-class.html), [official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk): verifier, bounded resolver and client interoperability support.
+
+Two suggested examples were inspected via their README and license, not executed or copied:
+
+- [hookdeck/mcp-events-outpost-demo](https://github.com/hookdeck/mcp-events-outpost-demo): MIT, copyright 2026 Hookdeck Technologies Inc. Its demo distinction and outbox delivery architecture are useful references; this project does not depend on Hookdeck or Outpost.
+- [rohanprichard/mcp-events-starter](https://github.com/rohanprichard/mcp-events-starter): MIT, copyright 2026 Rohan Richard. Its documented limitations reinforce why a shared test bearer token is insufficient for ChatGPT OAuth. This project does not reuse its code or setup scripts.
+
+No third-party example source was copied, so no example code license notice is embedded in runtime files. Dependency licenses remain those of their packages. The private project's owner has not selected a distribution license.
