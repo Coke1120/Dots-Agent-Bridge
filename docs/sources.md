@@ -16,3 +16,5 @@ Two suggested examples were inspected via their README and license, not executed
 - [rohanprichard/mcp-events-starter](https://github.com/rohanprichard/mcp-events-starter): MIT, copyright 2026 Rohan Richard. Its documented limitations reinforce why a shared test bearer token is insufficient for ChatGPT OAuth. This project does not reuse its code or setup scripts.
 
 No third-party example source was copied, so no example code license notice is embedded in runtime files. Dependency licenses remain those of their packages. The private project's owner has not selected a distribution license.
+
+Local packaging references: [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels), [official tunnel-client README](https://github.com/openai/tunnel-client), and [configuration/OAuth rewriting](https://github.com/openai/tunnel-client/blob/main/docs/configuration.md#mcp-server). The [mcp-serve evaluation](hermes-mcp-serve-evaluation.md) records the official Hermes plugin's actual direction and limits.

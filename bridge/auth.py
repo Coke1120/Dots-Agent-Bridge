@@ -53,15 +53,42 @@ class Policy:
         return current
 
 
+def validate_https(url):
+    if not isinstance(url, str):
+        raise ValueError("URL must be a string")
+    u = urlsplit(url)
+    if (u.scheme != "https" or not u.hostname or u.username or u.password
+            or u.fragment or u.query or any(ord(c) <= 32 for c in url)):
+        raise ValueError("Expected an explicit HTTPS URL without credentials/query/fragment")
+
+
+def validate_local_resource(url):
+    if not isinstance(url, str):
+        raise ValueError("Local resource must be a string")
+    u = urlsplit(url)
+    if (u.scheme != "http" or u.hostname != "127.0.0.1" or u.port is None
+            or not 1024 <= u.port <= 65535 or u.path != "/mcp"
+            or u.username or u.password or u.query or u.fragment):
+        raise ValueError("Local resource must be http://127.0.0.1:PORT/mcp, port 1024-65535")
+    return u.port
+
+
 class JWTAuth:
-    def __init__(self, issuer, audience, jwks_url, policy, client_claim="client_id"):
+    def __init__(self, issuer, audience, jwks_url, policy, client_claim="client_id", *, allow_loopback=False, tunnel_resource=None):
         if client_claim not in ("client_id", "azp"):
             raise ValueError("Unsupported client claim")
         self.client_claim = client_claim
-        for url in (issuer, audience, jwks_url):
-            if urlsplit(url).scheme != "https" or not urlsplit(url).hostname:
-                raise ValueError("OAuth issuer, resource and JWKS must be HTTPS")
-        self.issuer, self.audience, self.policy = issuer, audience, policy
+        for url in (issuer, jwks_url):
+            validate_https(url)
+        if allow_loopback:
+            validate_local_resource(audience)
+        else:
+            validate_https(audience)
+        audiences = [audience]
+        if tunnel_resource:
+            validate_https(tunnel_resource)
+            audiences.append(tunnel_resource)
+        self.issuer, self.audience, self.policy = issuer, audiences, policy
         # Pinned operator URL, never a token-supplied jku/x5u URL. Short bounded cache.
         self.keys = jwt.PyJWKClient(jwks_url, lifespan=300, timeout=5)
 

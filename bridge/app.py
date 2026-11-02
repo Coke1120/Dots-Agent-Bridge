@@ -20,7 +20,7 @@ MAX_BODY = 65536
 
 def create_app(store, auth, resource, issuer, run_worker=True):
     protocol = Protocol(store)
-    origin = "https://" + urlsplit(resource).netloc
+    origin = urlsplit(resource).scheme + "://" + urlsplit(resource).netloc
     metadata_url = origin + "/.well-known/oauth-protected-resource"
 
     @asynccontextmanager

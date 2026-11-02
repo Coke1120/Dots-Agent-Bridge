@@ -11,7 +11,7 @@ Local Python 3.12 checks:
 git diff --check
 ```
 
-The test suite currently has **63 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
+The test suite currently has **78 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
 
 | Area | Evidence |
 | --- | --- |
@@ -28,3 +28,9 @@ The test suite currently has **63 passing cases**, zero failures. Starlette emit
 **Unrun / still pending:** actual provider login/consent/PKCE and refresh flow; deployed ingress/TLS and outbound DNS/network; actual ChatGPT dot subscription/challenge/refresh and processing; actual MBA Hermes version/configuration; live two-way synthetic conversation; backup/restore operations and load testing. No real users, account grants or event receivers were used. Passing offline tests must not be presented as proof of an existing dot connection.
 
 The smallest next step is to review the Draft PR and choose the persistent host/domain plus external OAuth provider. Then, under separate user authorization, configure the two clients/operator grants and perform the synthetic connection checks in [connection.md](connection.md).
+
+## MBA packaging checks
+
+Additional offline cases cover private template creation/no overwrite, disabled placeholder grants, permissions and symlink rejection, loopback-only resource validation, exact local/tunnel JWT audiences, local OAuth discovery, passive Hermes/plist rendering (including spaces/XML escaping), and one-process database locking. The launcher test mocks uvicorn, so it registers no service or network listener. Actual macOS launchctl/plutil, MBA installation, tunnel OAuth rewriting and proactive native UI delivery remain unrun.
+
+The Python wheel was successfully built and its installed console entry point smoke-tested in the Cloud workspace. This is not a macOS installation test. CI also builds/installs the package and checks the CLI entry point.

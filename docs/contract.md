@@ -4,6 +4,8 @@
 
 One authenticated `/mcp` endpoint handles `initialize`, `ping`, `tools/list`, `tools/call`, `events/list`, `events/subscribe`, and `events/unsubscribe`. It negotiates MCP `2025-11-25` and returns JSON responses; GET/DELETE return 405. Sessions, SSE streams, batch requests, MCP 2.0 `server/discover`, prompts and resources are not advertised. Supported initialization/cancellation notifications are ACKed with 202. MCP transport cancellation does not cancel a queued mailbox request; use `cancel_request` for that.
 
+The dedicated local CLI allows `http://127.0.0.1:PORT/mcp` as the resource and optionally one operator-pinned HTTPS tunnel audience. It still validates all token signatures/claims and grants. Remote HTTPS mode does not enable this exception. Local resource metadata uses the exact loopback origin; the tunnel performs its documented external discovery rewriting.
+
 OAuth metadata is public at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp`; all MCP discovery and calls require a verified token. Missing/invalid authentication gets a 401 metadata challenge. Role/scope failures get a generic forbidden RPC error. Identity is the selected provider's verified subject + OAuth client mapped through operator policy. Token-supplied owner/role claims have no authority. Extra tool arguments are rejected.
 
 ## Conversation and request lifecycle

@@ -1,5 +1,7 @@
 # Connection plan — not yet executed
 
+For the selected MBA hosting workflow, start with [macos-local.md](macos-local.md); the HTTPS instructions below remain the alternative hosting profile.
+
 The implementation is a resource server, not an authorization server. The provider handles interactive user login, consent, OAuth authorization-code flow, S256 PKCE, redirect validation, refresh tokens and client registration. No credentials are issued by this bridge.
 
 ## External provider profile
