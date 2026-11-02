@@ -144,3 +144,34 @@ def test_malformed_local_settings_fail_without_traceback_or_values(local_config,
     local_config.write_text(json.dumps(config))
     (local_config.parent / "policy.json").write_text("[]")
     assert main(["check", "--config", str(local_config)]) == 2
+
+
+def test_discovery_bootstrap_exposes_no_tools_or_writes(local_config, monkeypatch):
+    from bridge.app import create_discovery_app
+    key = local_config.parent / 'signing-secrets.key'
+    key.unlink()
+    (local_config.parent / 'policy.json').unlink()
+    runs = []
+    def fake_run(app, **kwargs):
+        runs.append(kwargs)
+        with TestClient(app) as client:
+            for path in ('/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp'):
+                assert client.get(path).json()['authorization_servers'] == ['https://issuer.example']
+            for method in ('initialize', 'tools/list', 'tools/call', 'events/subscribe'):
+                response = client.post('/mcp', headers={'Authorization': 'Bearer synthetic'}, json={
+                    'jsonrpc': '2.0', 'id': 1, 'method': method})
+                assert response.status_code == 401 and not response.content
+            assert client.post('/mcp', headers={'Origin': 'https://other.example'}).status_code == 403
+    monkeypatch.setattr('uvicorn.run', fake_run)
+    assert main(['serve-discovery', '--config', str(local_config)]) == 0
+    assert runs[0]['host'] == '127.0.0.1'
+    assert not (local_config.parent / 'bridge.sqlite').exists()
+    assert not key.exists()
+
+
+def test_tunnel_readiness_requires_pinned_audience(local_config):
+    assert main(['check', '--require-tunnel', '--config', str(local_config)]) == 2
+    config = json.loads(local_config.read_text())
+    config['tunnel_resource'] = 'https://tunnel.example/exact-resource'
+    local_config.write_text(json.dumps(config))
+    assert main(['check', '--require-tunnel', '--config', str(local_config)]) == 0

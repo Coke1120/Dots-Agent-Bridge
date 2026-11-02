@@ -11,7 +11,7 @@ Local Python 3.12 checks:
 git diff --check
 ```
 
-The test suite currently has **78 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
+The test suite currently has **81 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
 
 | Area | Evidence |
 | --- | --- |
@@ -29,8 +29,16 @@ The test suite currently has **78 passing cases**, zero failures. Starlette emit
 
 The smallest next step is to review the Draft PR and choose the persistent host/domain plus external OAuth provider. Then, under separate user authorization, configure the two clients/operator grants and perform the synthetic connection checks in [connection.md](connection.md).
 
-## MBA packaging checks
+## macOS packaging checks
 
 Additional offline cases cover private template creation/no overwrite, disabled placeholder grants, permissions and symlink rejection, loopback-only resource validation, exact local/tunnel JWT audiences, local OAuth discovery, passive Hermes/plist rendering (including spaces/XML escaping), and one-process database locking. The launcher test mocks uvicorn, so it registers no service or network listener. Actual macOS launchctl/plutil, MBA installation, tunnel OAuth rewriting and proactive native UI delivery remain unrun.
 
 The Python wheel was successfully built and its installed console entry point smoke-tested in the Cloud workspace. This is not a macOS installation test. CI also builds/installs the package and checks the CLI entry point.
+
+## Tunnel preparation (Mac mini target)
+
+Added a discovery-only bootstrap test proving that metadata remains available while every MCP request is denied and no store/key/grant is loaded. `check --require-tunnel` now rejects an unset tunnel audience. The dual-audience acceptance rehearsal uses actual RS256 verification, both official MCP client sessions, persistent mailbox operations and a fake callback; this remains offline and does not establish Tunnel/ChatGPT availability. The staged Mac mini handoff documents user login, separate action-time account approvals and exact synthetic pass criteria.
+
+## Hermes MCP SDK 2.3 compatibility
+
+Mac mini preflight reported MCP SDK 2.3.0 and Python 3.14.9. Cloud tested the full 81-case suite in independent Python 3.12 environments using SDK 1.30.0 and SDK 2.3.0: both passed. Initial SDK 2 test-harness failures (two-value transport streams and snake_case model fields) were fixed in `tests/sdk_compat.py`; server protocol negotiation remains `2025-11-25`. The helper selects httpx2 for SDK 2, matching that SDK's client API. CI now tests both lockfiles on Python 3.12 and 3.14. `tests/requirements-mcp23.lock` is only an isolated compatibility-test environment, not a request to modify Hermes. Actual Hermes OAuth UI/login and live Tunnel interoperability remain pending.

@@ -2,9 +2,8 @@
 import asyncio
 import json
 
-import httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from sdk_compat import field, httpx, sdk_transport
 
 
 def test_official_client_round_trip(env):
@@ -12,14 +11,14 @@ def test_official_client_round_trip(env):
         # In-process HTTP transport: no external network, listener or real account.
         transport = httpx.ASGITransport(app=env["client"].app)
         async with httpx.AsyncClient(transport=transport, headers={"Authorization": "Bearer alice-hermes"}) as http:
-            async with streamable_http_client("https://bridge.example/mcp", http_client=http) as (read, write, _):
+            async with sdk_transport("https://bridge.example/mcp", http_client=http) as (read, write):
                 async with ClientSession(read, write) as session:
                     init = await session.initialize()
-                    assert init.protocolVersion == "2025-11-25"
+                    assert field(init, "protocolVersion", "protocol_version") == "2025-11-25"
                     tools = await session.list_tools()
                     assert "submit_message" in {t.name for t in tools.tools}
                     result = await session.call_tool("submit_message", {"content": "Synthetic SDK message", "idempotency_key": "sdk"})
-                    assert not result.isError
+                    assert not field(result, "isError", "is_error")
                     request = json.loads(result.content[0].text)
                     readback = await session.call_tool("get_request", {"request_id": request["id"]})
                     assert json.loads(readback.content[0].text)["request"]["state"] == "queued"

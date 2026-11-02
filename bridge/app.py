@@ -18,6 +18,33 @@ logger = logging.getLogger(__name__)
 MAX_BODY = 65536
 
 
+def add_metadata_routes(app, resource, issuer):
+    @app.get("/.well-known/oauth-protected-resource")
+    @app.get("/.well-known/oauth-protected-resource/mcp")
+    def metadata():
+        return {"resource": resource, "authorization_servers": [issuer],
+                "scopes_supported": sorted(set.union(*SCOPES.values())), "bearer_methods_supported": ["header"]}
+
+
+def create_discovery_app(resource, issuer):
+    """Bootstrap only public metadata. No store, credentials, tools or event worker."""
+    from .auth import validate_https, validate_local_resource
+    validate_local_resource(resource)
+    validate_https(issuer)
+    origin = resource.removesuffix("/mcp")
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    add_metadata_routes(app, resource, issuer)
+
+    @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
+    async def deny_all(request: Request):
+        if request.headers.get("origin") not in (None, origin):
+            return Response(status_code=403)
+        return Response(status_code=401, headers={"WWW-Authenticate":
+            f'Bearer resource_metadata="{origin}/.well-known/oauth-protected-resource"'})
+
+    return app
+
+
 def create_app(store, auth, resource, issuer, run_worker=True):
     protocol = Protocol(store)
     origin = urlsplit(resource).scheme + "://" + urlsplit(resource).netloc
@@ -45,11 +72,7 @@ def create_app(store, auth, resource, issuer, run_worker=True):
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
-    @app.get("/.well-known/oauth-protected-resource")
-    @app.get("/.well-known/oauth-protected-resource/mcp")
-    def metadata():
-        return {"resource": resource, "authorization_servers": [issuer],
-                "scopes_supported": sorted(set.union(*SCOPES.values())), "bearer_methods_supported": ["header"]}
+    add_metadata_routes(app, resource, issuer)
 
     @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
     async def mcp(request: Request):

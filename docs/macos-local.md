@@ -1,23 +1,26 @@
-# MBA local service + Hermes MCP integration
+# macOS local service + Hermes MCP integration
 
-This is an installable Python service with a supported Hermes `mcp_servers` entry. It behaves like an extra tool integration in Hermes; it does not modify Hermes core or register a native `hermes plugins install` package. No installation, launchd registration, network change, login or tunnel creation has been performed on your MBA.
+**Current live-test target: Mac mini Hermes**, superseding the earlier MBA choice. Follow [the staged Secure MCP Tunnel handoff](tunnel-handoff.md) for action-time confirmations and the synthetic acceptance test.
+
+This is an installable Python service with a supported Hermes `mcp_servers` entry. It behaves like an extra tool integration in Hermes; it does not modify Hermes core or register a native `hermes plugins install` package. No installation, launchd registration, network change, login or tunnel creation has been performed on your Mac.
 
 ## Architecture and the UI boundary
 
-Hermes on MBA → OAuth-authenticated loopback MCP service → persistent mailbox + outbound signed event → existing ChatGPT dot → authenticated read/respond over the selected tunnel → mailbox → Hermes polls and displays the answer in its current turn.
+Hermes on the selected Mac → OAuth-authenticated loopback MCP service → persistent mailbox + outbound signed event → existing ChatGPT dot → authenticated read/respond over the selected tunnel → mailbox → Hermes polls and displays the answer in its current turn.
 
-ChatGPT cannot directly reach your MBA's `127.0.0.1`. The preferred private connectivity candidate is official **Secure MCP Tunnel**, which forwards calls through an outbound connection. The authorization server must remain reachable for browser login. Events travel separately as outbound HTTPS webhooks from MBA to the verified ChatGPT receiver. A sleeping/offline MBA cannot deliver or answer calls; work resumes on wake while request/subscription lifetimes remain valid.
+ChatGPT cannot directly reach your Mac's `127.0.0.1`. The preferred private connectivity candidate is official **Secure MCP Tunnel**, which forwards calls through an outbound connection. The authorization server must remain reachable for browser login. Events travel separately as outbound HTTPS webhooks from the Mac to the verified ChatGPT receiver. A sleeping/offline Mac cannot deliver or answer calls; work resumes on wake while request/subscription lifetimes remain valid.
 
 Hermes retrieves replies with `get_request`/`list_responses`. This does **not** inject a new message into an idle native Hermes CLI/Desktop conversation or automatically start a Hermes turn. Ask Hermes to check results, or have the active turn poll within a reasonable timeout. Autonomous UI notification/injection needs a separately verified Hermes interface and is not implemented.
 
 ## 1. Install the reviewed code locally (user action)
 
-Use Python 3.12+ on MBA and the reviewed PR branch/commit. These commands do not enable a service or connect accounts:
+Use Python 3.12+ on the selected Mac and the reviewed PR branch/commit. These commands do not enable a service or connect accounts:
 
 ```sh
 git clone --branch feat/authenticated-async-bridge https://github.com/Coke1120/hermes-dots-bridge.git
 cd hermes-dots-bridge
-python3.12 -m venv .venv
+# Use a supported Python >=3.12, in a dedicated bridge venv (not Hermes' venv).
+python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
 .venv/bin/python -m pip install --no-deps .
 .venv/bin/hermes-dots-bridge init --directory "$HOME/Library/Application Support/hermes-dots-bridge"
@@ -101,6 +104,6 @@ Stop/disable: `launchctl bootout "gui/$(id -u)/com.hermes-dots-bridge.service"`.
 
 ## Stable public HTTPS alternative
 
-If Secure MCP Tunnel is unavailable or the two-resource OAuth flow is incompatible with your provider, keep the service on MBA but use an operator-controlled **fixed HTTPS domain** forwarding only to the loopback bridge. Configure the existing HTTPS production factory and [server environment](../examples/server.env.example); use the same canonical HTTPS resource for both clients and [HTTPS Hermes template](../examples/hermes.config.example.yaml). This requires an explicitly approved ingress/tunnel and external OAuth setup; the local loopback CLI is not used in this mode. No random public quick-tunnel, auth bypass, TLS bypass, port forwarding or firewall change is installed here.
+If Secure MCP Tunnel is unavailable or the two-resource OAuth flow is incompatible with your provider, keep the service on the selected Mac but use an operator-controlled **fixed HTTPS domain** forwarding only to the loopback bridge. Configure the existing HTTPS production factory and [server environment](../examples/server.env.example); use the same canonical HTTPS resource for both clients and [HTTPS Hermes template](../examples/hermes.config.example.yaml). This requires an explicitly approved ingress/tunnel and external OAuth setup; the local loopback CLI is not used in this mode. No random public quick-tunnel, auth bypass, TLS bypass, port forwarding or firewall change is installed here.
 
-Remaining decisions: external OAuth provider/tenant, approved tunnel/workspace or fixed HTTPS domain, exact resource audiences and verified callback hostnames, private key storage, and whether login startup is wanted. MBA availability determines bridge availability.
+Remaining decisions: external OAuth provider/tenant, approved tunnel/workspace or fixed HTTPS domain, exact resource audiences and verified callback hostnames, private key storage, and whether login startup is wanted. Mac availability determines bridge availability.

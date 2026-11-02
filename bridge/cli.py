@@ -164,9 +164,11 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="Write disabled placeholder templates to a new directory only")
     init.add_argument("--directory", type=Path, required=True)
-    for name in ("check", "serve", "print-hermes", "print-launchd"):
+    for name in ("check", "serve", "serve-discovery", "print-hermes", "print-launchd"):
         command = sub.add_parser(name)
         command.add_argument("--config", type=Path, required=True)
+        if name == "check":
+            command.add_argument("--require-tunnel", action="store_true", help="Fail if the explicit tunnel audience is unset")
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
@@ -176,6 +178,8 @@ def main(argv=None):
             return 0
         config = load_config(args.config, ready=args.command in ("check", "serve"))
         if args.command == "check":
+            if args.require_tunnel and not config["tunnel_resource"]:
+                raise SetupError("Exact verified tunnel audience is required")
             print("Local configuration checks passed. No network or account validation performed.")
             if not config["tunnel_resource"]:
                 print("Tunnel audience is unset: ChatGPT tunnel connection is not ready.")
@@ -183,6 +187,15 @@ def main(argv=None):
             print(hermes_snippet(config), end="")
         elif args.command == "print-launchd":
             print(launchd_template(args.config).decode(), end="")
+        elif args.command == "serve-discovery":
+            if "REPLACE_" in config["issuer"]:
+                raise SetupError("Set the verified external issuer before discovery")
+            import uvicorn
+            from .app import create_discovery_app
+            print("Discovery-only: every MCP call is denied; no database or secrets loaded.")
+            uvicorn.run(create_discovery_app(config["resource"], config["issuer"]),
+                        host="127.0.0.1", port=validate_local_resource(config["resource"]),
+                        workers=1, access_log=False, proxy_headers=False, limit_concurrency=16)
         elif args.command == "serve":
             serve(config)
         return 0

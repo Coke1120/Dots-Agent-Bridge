@@ -1,12 +1,14 @@
 # hermes-dots-bridge
 
-**Implemented, awaiting connection validation.** A private, asynchronous mailbox between Hermes Agent on a MacBook Air and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
+**Implemented, awaiting connection validation.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
 Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
 
-## MBA local installation
+## Mac local installation
 
-The bridge can run beside Hermes on your MBA. See the [local-service walkthrough](docs/macos-local.md) for the installable CLI, private setup validation, generated Hermes configuration, foreground start/stop and optional user-controlled launchd template. No automatic installer modifies Hermes or registers a service.
+The selected test target is now **Mac mini Hermes**. [The Tunnel handoff](docs/tunnel-handoff.md) lists exact account/setup gates and the synthetic end-to-end test.
+
+The bridge can run beside Hermes on your Mac. See the [local-service walkthrough](docs/macos-local.md) for the installable CLI, private setup validation, generated Hermes configuration, foreground start/stop and optional user-controlled launchd template. No automatic installer modifies Hermes or registers a service.
 
 Dot reaches the local server through an explicitly configured Secure MCP Tunnel or fixed authenticated HTTPS ingress. OAuth remains required. The local runner accepts only an explicit loopback resource plus an optional exact tunnel audience; the normal HTTPS server remains unchanged. Hermes polls replies; proactive injection into its native UI is not implemented. The [official mcp-serve evaluation](docs/hermes-mcp-serve-evaluation.md) explains why that plugin does not replace this flow.
 

@@ -18,3 +18,7 @@ Two suggested examples were inspected via their README and license, not executed
 No third-party example source was copied, so no example code license notice is embedded in runtime files. Dependency licenses remain those of their packages. The private project's owner has not selected a distribution license.
 
 Local packaging references: [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels), [official tunnel-client README](https://github.com/openai/tunnel-client), and [configuration/OAuth rewriting](https://github.com/openai/tunnel-client/blob/main/docs/configuration.md#mcp-server). The [mcp-serve evaluation](hermes-mcp-serve-evaluation.md) records the official Hermes plugin's actual direction and limits.
+
+Tunnel command and permission handoff additionally checked the official repository at `f745672195e788073ab0b104644138cdd2e4fd61`: `cmd/client/init_command.go`, `profile_samples/sample_mcp_with_dcr.yaml.tmpl`, `help_topics/{quickstart,oauth}.txt`, and `docs/permissions.md`. Source was read only, not installed/executed. Account entitlement is not inferred from documentation.
+
+Hermes client path additionally inspected at the local preflight revision `c7c7e0fa92f`: `tools/mcp_tool.py` and `tools/mcp_tool_transport.py` support current SDK transports and initialize-based handshake versions. SDK 2.3.0 was installed only into an isolated Cloud test venv and its public client API exercised; no Hermes environment was modified.
