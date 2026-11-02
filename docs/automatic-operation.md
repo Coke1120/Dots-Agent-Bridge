@@ -303,7 +303,40 @@ ongoing readiness, still observe platform subscription renewal, client token ref
 reboot recovery, and validate the default interactive Hermes profile. Repository code
 cannot force these platform actions.
 
-## 7. Renewal and client compatibility checklist
+## 7. Programmatic use and model usage
+
+The MCP transport, SQLite mailbox, event delivery and `submit_message` / `wait_response` /
+`list_responses` operations are deterministic code. None calls an LLM. A program can submit
+once, save the request ID/idempotency key and poll or long-poll for the stored reply without
+running a Hermes model. The dot still uses its model to produce that reply; this is not a
+claim of zero total tokens, free usage or a particular subscription billing treatment.
+
+The `/talk-to-dot` slash command is a **skill prompt** executed by the Hermes agent, not a
+standalone deterministic shell command. Selecting tools and interpreting results through
+that agent may consume Hermes model tokens in addition to the dot's usage.
+
+Current command availability matters: `hermes-dots-bridge` manages the local service and
+configuration; it does **not** expose `send`, `wait` or `read` subcommands. The reported live
+run used an isolated local transport, whose reusable invocation and corrected SDK snippet
+have not yet been supplied to this repository. Do not invent a `hermes mcp call` or bridge
+send command, or copy private token caches to imitate that run. Publishing a supported
+direct-use command remains pending that transport handoff and review.
+
+For developers, the existing deterministic client flow is executable **offline**:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_synthetic_acceptance.py
+```
+
+That test uses the official MCP client, synthetic JWTs and an in-process server/fake
+callback; it calls no model and is not a command for sending to the real dot. A production
+client must reuse a supported authenticated OAuth transport with normal TLS verification,
+client-owned token refresh, bounded waits and persisted IDs on uncertain outcomes. It must
+not embed access tokens in command-line arguments or resubmit merely because decoding
+failed. Until the local transport is reviewed and packaged, the documented end-user route
+remains the Hermes skill, with the model-usage distinction above.
+
+## 8. Renewal and client compatibility checklist
 
 The bridge is a resource server, not an OAuth client. It never issues or stores access or
 refresh tokens. Hermes and the ChatGPT connection must each manage their own provider
