@@ -2,17 +2,24 @@
 
 ## Current evidence and boundary
 
-The separate Mac mini test reported a real **manual** round trip: authenticated Hermes
-submission → a new ChatGPT conversation using the real bridge tools → `record_response`
-→ Hermes retrieval of the exact completed revision 1 response. That proves transport,
-identity and mailbox access, not automatic operation. No webhook subscription/delivery/
-dot wakeup has yet passed a real end-to-end test. The older parent conversation still
-lacked tools while fresh threads exposed them; use a fresh conversation of the intended
-existing dot after refreshing the plugin, not a substitute agent impersonating it.
+On 2026-11-02, the separate Mac mini integration reported one successful real automatic
+round trip in **24.251 seconds**: an isolated Hermes transport submitted a request → the
+signed webhook received HTTP 200 → the intended dot genuinely woke on the event and
+recorded its answer → Hermes retrieved the exact response at revision 1. There was no
+manual ChatGPT message or manually invoked reply in this run. The stored response, not
+the webhook ACK alone, establishes completion. This is a measured single run, not an SLA.
 
-On 2026-11-02 the official Automations event-source and schema discovery calls actually
-listed “Hermes dots bridge test” with `request.created` and empty `{}` parameters. This
-is an available supported trigger path. No automation was created by the Cloud task.
+This supersedes the earlier manual-only evidence. Default interactive Hermes integration
+is still being finished: the isolated transport result does not establish that `/talk-to-dot`
+works in every interactive profile. OAuth token refresh, subscription renewal and recovery
+after a Mac reboot have **not** been verified. Do not equate one event-triggered answer
+with unattended reliability. Cloud did not perform these live account operations.
+
+Official Automations event-source/schema discovery exposed `request.created` with empty
+`{}` parameters. The working architecture uses that supported event handler, the existing
+dot and its bridge tools; it does not require a second model, Slack or manual message relay.
+Tool availability can differ between ChatGPT conversations; confirm the intended handler
+has access instead of substituting another agent to impersonate the dot.
 
 The automatic path is:
 
@@ -289,8 +296,45 @@ Then run this synthetic test with no manual dot response:
    Confirm cancellation/expiry never becomes completed and missing/expired authorization
    stops processing. Verify eventual subscription refresh before its finite expiry.
 7. Report each observed stage, versions and IDs without secrets. Only stage 3 proves an
-   automatic round trip; stage 7's refresh observation is required for ongoing readiness.
+   automatic round trip; stage 6's refresh observation is required for ongoing readiness.
 
-Remaining platform gates: execution must use the intended existing dot and expose its
-bridge tools; callback hostname must be verifiable; ChatGPT must successfully create,
-refresh and invoke the event handler. Repository code cannot force these platform actions.
+The first live run demonstrated event creation/delivery and intended-dot execution. For
+ongoing readiness, still observe platform subscription renewal, client token refresh and
+reboot recovery, and validate the default interactive Hermes profile. Repository code
+cannot force these platform actions.
+
+## 7. Renewal and client compatibility checklist
+
+The bridge is a resource server, not an OAuth client. It never issues or stores access or
+refresh tokens. Hermes and the ChatGPT connection must each manage their own provider
+refresh flow. `JWTAuth` rejects expired tokens; `wait_response` revalidates authentication
+while waiting. Neither launchd KeepAlive nor webhook retries repair expired OAuth grants.
+Test each client's renewal past access-token expiry using supported login controls; keep
+refresh tokens out of logs. A successful fresh login is not evidence of successful refresh.
+
+`Store.subscribe` implements renewal through another authenticated `events/subscribe`
+with the same subject/client/owner, event arguments and callback URL. It updates the same
+subscription ID and expiry; there is no server-side timer that renews platform subscriptions.
+`ttlMs` has a minimum of 1,000 ms, defaults to 86,400,000 ms when omitted/null and is capped
+at that value (24 hours). `refreshBefore` is the actual expiry timestamp: the platform must
+renew **before** it, allowing time for retries. Challenge verification is cached for five
+minutes; renewal after that interval verifies the signed challenge again. Changing a
+signing secret permits a five-minute overlap. Expired subscriptions stop delivery; new
+subscriptions do not backfill requests submitted without an active subscription.
+
+Observe a genuine renewal before the returned deadline and confirm subsequent requests
+still complete. Then verify both OAuth clients across token expiry, and separately restart
+and reboot the host within request/subscription expiry. Keep the existing IDs and inspect
+stored state before retries. These checks are pending live; offline expiry, retry and restart
+tests do not substitute for them.
+
+The local integration reported correcting an SDK result-field mismatch while continuing
+the same request. Its exact failing field and corrected transport snippet have not yet been
+provided to Cloud, so no speculative server or skill fix is included. The repository's
+`tests/sdk_compat.py` already handles SDK 1 camelCase versus SDK 2 snake_case Python model
+fields (`isError`/`is_error`) and transport tuple differences. Its synthetic acceptance test
+parses JSON from the tool's text content; Python model attributes are distinct from the
+wire field names. The skill consumes normal Hermes tool results and has no Python SDK
+field access. Before copying a custom transport script, verify its installed SDK/version
+and sanitized failing attribute against that helper. Do not resubmit a request because a
+client failed to decode a successful response; retrieve the existing request first.

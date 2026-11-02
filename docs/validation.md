@@ -1,6 +1,22 @@
 # Validation evidence
 
-Status: **implemented, awaiting connection validation**.
+Status: **one real automatic round trip verified by local integration; interactive setup,
+renewal and reboot recovery remain pending**.
+
+## Latest live evidence (2026-11-02)
+
+The authorized Mac mini integration reported an isolated Hermes transport submission,
+signed webhook HTTP 200, genuine event-triggered intended-dot reply and exact Hermes
+response retrieval at revision 1 in 24.251 seconds, with no manual chat/reply. This proves
+one automatic round trip; it does not prove default interactive skill integration, OAuth
+refresh, subscription renewal or reboot recovery. Those remain unverified. No live IDs,
+credentials or private callback URLs are included here. See the
+[operational guide](automatic-operation.md) for the working architecture and remaining checks.
+
+The sections below record earlier milestones and offline evidence. Their historical
+connection gates are superseded only by the specific live observations above.
+
+## Initial offline baseline
 
 Local Python 3.12 checks:
 
@@ -25,9 +41,9 @@ The test suite at the pre-modern baseline had **81 passing cases**, zero failure
 
 **Mocked:** IdP/JWKS retrieval, HTTP authentication in mailbox integration tests, callback receiver/network/TLS sockets, clock advancement. JWT signatures and SQLite transactions are real within tests. No fake-auth environment switch or production bypass exists; injected test adapters live under `tests/` only.
 
-**Unrun / still pending:** actual provider login/consent/PKCE and refresh flow; deployed ingress/TLS and outbound DNS/network; actual ChatGPT dot subscription/challenge/refresh and processing; actual MBA Hermes version/configuration; live two-way synthetic conversation; backup/restore operations and load testing. No real users, account grants or event receivers were used. Passing offline tests must not be presented as proof of an existing dot connection.
+**Unrun at this baseline:** actual provider login/consent/PKCE and refresh flow; deployed ingress/TLS and outbound DNS/network; actual ChatGPT dot subscription/challenge/refresh and processing; actual MBA Hermes version/configuration; live two-way synthetic conversation; backup/restore operations and load testing. No real users, account grants or event receivers were used. Passing offline tests must not be presented as proof of an existing dot connection.
 
-The smallest next step is to review the Draft PR and choose the persistent host/domain plus external OAuth provider. Then, under separate user authorization, configure the two clients/operator grants and perform the synthetic connection checks in [connection.md](connection.md).
+At this baseline, the next step was to review the Draft PR and choose the persistent host/domain plus external OAuth provider. Then, under separate user authorization, configure the two clients/operator grants and perform the synthetic connection checks in [connection.md](connection.md).
 
 ## macOS packaging checks
 
@@ -41,13 +57,13 @@ Added a discovery-only bootstrap test proving that metadata remains available wh
 
 ## Hermes MCP SDK 2.3 compatibility
 
-Mac mini preflight reported MCP SDK 2.3.0 and Python 3.14.9. Cloud tested the full 81-case suite in independent Python 3.12 environments using SDK 1.30.0 and SDK 2.3.0: both passed. Initial SDK 2 test-harness failures (two-value transport streams and snake_case model fields) were fixed in `tests/sdk_compat.py`; at that baseline server protocol negotiation remained `2025-11-25`. The helper selects httpx2 for SDK 2, matching that SDK's client API. CI now tests both lockfiles on Python 3.12 and 3.14. `tests/requirements-mcp23.lock` is only an isolated compatibility-test environment, not a request to modify Hermes. Actual Hermes OAuth UI/login and live Tunnel interoperability remain pending.
+Mac mini preflight reported MCP SDK 2.3.0 and Python 3.14.9. Cloud tested the full 81-case suite in independent Python 3.12 environments using SDK 1.30.0 and SDK 2.3.0: both passed. Initial SDK 2 test-harness failures (two-value transport streams and snake_case model fields) were fixed in `tests/sdk_compat.py`; at that baseline server protocol negotiation remained `2025-11-25`. The helper selects httpx2 for SDK 2, matching that SDK's client API. CI now tests both lockfiles on Python 3.12 and 3.14. `tests/requirements-mcp23.lock` is only an isolated compatibility-test environment, not a request to modify Hermes. Actual Hermes OAuth UI/login and live Tunnel interoperability were still pending at this milestone.
 
 ## Modern discovery regression
 
 The live integration reported HTTP 400 for `server/discover`, but retained logs did not include protocol headers, params or response body. The new fixtures follow the official 2026-07-28 schema; they are not represented as a replay of the unavailable live payload. Tests cover authenticated role-scoped discovery, metadata/header/version validation, tool/header encoding, per-request role/owner isolation, event subscription and response storage. SDK 2's modern `Client(mode="auto")` now verifies discovery, tools and mailbox calls with no initialize fallback; the legacy SDK sessions remain covered.
 
-A failed modern transport validation logs only `mcp_wire_rejected code=<integer>`. No request body, client metadata, tokens, callback URLs or content are logged. If live refresh still fails, record only HTTP status and this numeric code; use the code to request a narrow sanitized schema diagnostic, never enable raw payload logging. Real dot response and webhook end-to-end validation remain local integration gates.
+A failed modern transport validation logs only `mcp_wire_rejected code=<integer>`. No request body, client metadata, tokens, callback URLs or content are logged. If live refresh still fails, record only HTTP status and this numeric code; use the code to request a narrow sanitized schema diagnostic, never enable raw payload logging. Real dot response and webhook end-to-end validation were local integration gates at this milestone.
 
 Local handoff: stop bridge, fetch the existing feature branch, fast-forward only after verifying a clean checkout, install the updated package with the bridge's isolated venv (`python -m pip install --no-deps .`), and restart the existing approved foreground command. Do not recreate the SQLite store, policy, keys, OAuth grants or tunnel. Refresh the existing ChatGPT plugin, verify modern discovery/tools/events, then read the queued synthetic request by its existing ID. Respect expiry; do not claim completion until a real dot writes a response and Hermes retrieves it.
 
@@ -55,7 +71,7 @@ Local handoff: stop bridge, fetch the existing feature branch, fast-forward only
 
 Separate local integration reports a successful manual real round trip. Cloud added bounded wait tests for response arrival, timeout, cancellation, expiry, token expiry, policy revocation, disconnect, capacity and cross-owner/role isolation; the dual-client real-JWT synthetic rehearsal also retrieves through wait_response. TLS tests use ephemeral synthetic certificates and a real local socket-pair TLS handshake; no CA is installed. Service templates are checked for Disabled=true and no plaintext exception. Local status is checked for no database creation. Existing durable outbox/retry/restart and false-completion tests remain in the suite.
 
-Real event subscription/challenge/refresh, platform-triggered intended-dot execution, launchd persistence and the macOS HTTPS trust/audience migration are **unrun** by Cloud. No new real credentials, grants, services or automation were created. See automatic-operation.md for a staged acceptance test that does not count a manually invoked dot reply as autonomous success.
+Real event subscription/challenge/refresh, platform-triggered intended-dot execution, launchd persistence and the macOS HTTPS trust/audience migration were **unrun** by Cloud at this milestone. No new real credentials, grants, services or automation were created. See automatic-operation.md for a staged acceptance test that does not count a manually invoked dot reply as autonomous success.
 
 ## Subscription failure diagnostics
 

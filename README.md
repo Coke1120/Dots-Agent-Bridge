@@ -1,12 +1,12 @@
 # hermes-dots-bridge
 
-**Manual real round trip verified; automatic event wakeup awaiting connection validation.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
+**One real automatic round trip verified; interactive integration and long-term renewal/recovery validation remain pending.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
 Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
 
 ## Automatic operation
 
-Start with the [automatic-operation guide](docs/automatic-operation.md): native Hermes `/talk-to-dot` skill, bounded `wait_response`, official event automation setup, local HTTPS, disabled LaunchAgent templates, status, key rotation and recovery. The official event-source discovery has exposed `request.created`; no real automatic subscription/wakeup round trip has yet been verified.
+Start with the [automatic-operation guide](docs/automatic-operation.md): native Hermes `/talk-to-dot` skill, bounded `wait_response`, official event automation setup, local HTTPS, disabled LaunchAgent templates, status, key rotation and recovery. A local Mac mini test completed the actual `request.created` wakeup and exact response retrieval in 24.251 seconds using an isolated Hermes transport. This is one observed run, not a latency guarantee.
 
 ## Mac local installation
 
@@ -57,7 +57,7 @@ Identity comes from a verified token and local operator policy, never an `owner_
 
 See [connection and external OAuth setup](docs/connection.md), [protocol and operational contract](docs/contract.md) and [verification evidence](docs/validation.md). Templates are in [examples](examples/).
 
-Local integration has reported authenticated ChatGPT/Hermes connections and a manual real response. Automatic operation still needs approved persistent service/trust setup, a verified callback hostname, one owner-authorized event automation and live wakeup/refresh validation. See the [approval bundle and acceptance test](docs/automatic-operation.md#6-automatic-acceptance-test-and-approval-bundle). No service is installed automatically by this repository.
+Local integration has reported a real automatic reply through authenticated Hermes transport, a signed webhook and the intended dot. Default interactive Hermes integration is still being finished; token renewal, subscription renewal and reboot recovery remain unverified. See the [approval bundle and acceptance test](docs/automatic-operation.md#6-automatic-acceptance-test-and-approval-bundle). No service is installed automatically by this repository.
 
 Run a single process with a persistent writable volume only after completing those settings:
 
