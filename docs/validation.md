@@ -1,15 +1,16 @@
 # Validation evidence
 
 Status: **repository direct client and dedicated profile verified by local integration;
-renewal and reboot recovery remain pending**.
+Hermes refresh verified; ChatGPT renewal and reboot recovery remain pending**.
 
 ## Latest live evidence (2026-11-02)
 
 The authorized Mac mini integration reported an isolated Hermes transport submission,
 signed webhook HTTP 200, genuine event-triggered intended-dot reply and exact Hermes
 response retrieval at revision 1 in 24.251 seconds, with no manual chat/reply. This proves
-one automatic round trip; it does not prove optional interactive skill integration, OAuth
-refresh, subscription renewal or reboot recovery. Those remain unverified. No live IDs,
+one automatic round trip; it does not prove optional interactive skill integration, ChatGPT-managed OAuth
+refresh, subscription renewal or reboot recovery. Those remain unverified; the later Hermes
+refresh result is recorded below. No live IDs,
 credentials or private callback URLs are included here. See the
 [operational guide](automatic-operation.md) for the working architecture and remaining checks.
 
@@ -100,6 +101,23 @@ result models, offline transport mocks, profile-before-import order, blocked inf
 imports, private retry receipts, input-bound idempotency, status-only reads, bounded waits
 and session cleanup on failure. The later local run described above separately verifies
 the packaged file in the dedicated profile. Neither test set certifies transitive imports
-of future Hermes releases. The current local cache lacks a refresh token; both clients
-already allow the refresh grant, but the HTTPS API's Allow Offline Access and refresh-token
-rotation were off. No settings changed during inspection; renewal remains unverified.
+of future Hermes releases. The initial missing-refresh-token observation is superseded
+by the approved renewal update below.
+
+
+## Approved renewal update
+
+Local verification reports HTTPS API offline access enabled and both existing clients
+configured for rotating refresh tokens, seven-day idle expiry, thirty-day maximum expiry
+and zero overlap. Hermes reauthorized for submit/read/offline_access, actually rotated
+tokens through refresh and then completed a harmless authenticated read. This is live
+refresh evidence, not merely successful login or a configured grant checkbox.
+
+The new ChatGPT connection retains the same client and HTTPS audience, uses
+client_secret_post with read/respond/subscribe/offline_access and existing openid, and
+passes an authenticated read. The same automation was updated to its new source. Its
+post-change automatic round trip is pending; ChatGPT-managed refresh, subscription renewal
+and reboot recovery have not been observed. Earlier automatic successes remain evidence
+for the earlier connection. See the operational guide for domain roles and separate token
+and subscription lifecycles. No Cloud account changes or live calls were made for this
+documentation update.

@@ -14,8 +14,8 @@ A later local run verified repository revision `819abe7` directly in the dedicat
 revision 1 response. No Hermes model initialized, the import guard was unchanged and
 the retry receipt was retained. The daily shell `talk-to-dot` wrapper now invokes this
 repository client; no tested-path code fixes were needed. This is distinct from the
-optional `/talk-to-dot` agent skill and does not validate that skill in every profile. OAuth token refresh, subscription renewal and recovery
-after a Mac reboot have **not** been verified. Do not equate one event-triggered answer
+optional `/talk-to-dot` agent skill and does not validate that skill in every profile. Hermes refresh-token rotation has since been verified (section 8). ChatGPT-managed token
+refresh, subscription renewal and recovery after a Mac reboot have **not** been verified. Do not equate one event-triggered answer
 with unattended reliability. Cloud did not perform these live account operations.
 
 Official Automations event-source/schema discovery exposed `request.created` with empty
@@ -302,7 +302,7 @@ Then run this synthetic test with no manual dot response:
    automatic round trip; stage 6's refresh observation is required for ongoing readiness.
 
 The first live run demonstrated event creation/delivery and intended-dot execution. For
-ongoing readiness, still observe platform subscription renewal, client token refresh and
+ongoing readiness, still observe platform subscription renewal, ChatGPT-managed token refresh and
 reboot recovery. The dedicated direct-client profile is verified; the optional interactive
 agent skill is a separate path. Repository code
 cannot force these platform actions.
@@ -423,9 +423,10 @@ signing secret permits a five-minute overlap. Expired subscriptions stop deliver
 subscriptions do not backfill requests submitted without an active subscription.
 
 Observe a genuine renewal before the returned deadline and confirm subsequent requests
-still complete. Then verify both OAuth clients across token expiry, and separately restart
+still complete. Hermes refresh has now passed; still verify ChatGPT-managed refresh across
+token expiry, and separately restart
 and reboot the host within request/subscription expiry. Keep the existing IDs and inspect
-stored state before retries. These checks are pending live; offline expiry, retry and restart
+stored state before retries. Those remaining checks are pending live; offline expiry, retry and restart
 tests do not substitute for them.
 
 The confirmed local bug was Python attribute access `result.isError` against SDK 2's
@@ -434,15 +435,52 @@ The confirmed local bug was Python attribute access `result.isError` against SDK
 content. The skill itself has no Python SDK attribute access. Both aliases and error cases
 are regression-tested; no server wire format was changed.
 
-The local inspection found the refresh-token grant type already enabled on **both Auth0
-clients**, but **Allow Offline Access was off on the HTTPS API**, refresh-token rotation
-was off, and the Hermes credential cache contained **no refresh token**. These are separate
-settings; enabling a client grant alone did not establish usable renewal. This inspection
-changed no grants or settings. Do not confuse the API's Allow Offline Access setting with
-the native-to-web SSO **Allow Refresh Token Requests** toggle.
+### Verified renewal update (2026-11-02)
 
-Until the appropriate API/client authorization flow yields a refresh token and renewal is
-actually tested, expect explicit reauthentication at access-token expiry. Rotation policy
-also needs deliberate review; this guide does not silently enable it or promise that
-changing a setting retroactively updates existing cached credentials. Subscription renewal is still unverified: inspect the actual
-`refreshBefore` in the private runtime rather than relying on a date embedded in this guide.
+After explicit operator approval, the local setup enabled **Allow Offline Access on the
+HTTPS Auth0 API** and configured both existing clients for refresh-token rotation with
+**7-day idle expiry, 30-day maximum expiry and 0-second overlap**. The refresh grant type
+was already enabled on both clients. These are distinct controls; the native-to-web SSO
+**Allow Refresh Token Requests** toggle is not the API's Allow Offline Access setting.
+This repository does not change provider settings automatically.
+
+Hermes reauthorized with `bridge:submit bridge:read offline_access`. A real refresh rotated
+the tokens and a subsequent harmless authenticated read succeeded. This supersedes the
+earlier missing-refresh-token finding; it proves one successful refresh, not indefinite
+access. Keep the supported token cache private and current. Do not copy rotating refresh
+tokens between machines or run competing refresh attempts; expiry or revoked grants can
+still require a new login, and the 30-day maximum is not extended merely by activity.
+
+A new ChatGPT renewal connection uses the same OAuth client, the exact HTTPS audience,
+`client_secret_post`, and `bridge:read bridge:respond bridge:subscribe offline_access`
+plus its existing `openid` scope. An authenticated read succeeded. The existing automation
+was updated in place to the new event source; no duplicate handler is intended. **The
+final automatic round trip after that connection change remains pending.** Earlier
+successful round trips do not establish that the revised connection/handler works end to
+end. ChatGPT-managed refresh, subscription renewal and reboot recovery remain unobserved.
+Never treat a refreshed connection card or webhook ACK as a completed reply.
+
+Inspect the current private subscription's `refreshBefore` and observe real renewal before
+expiry; no fixed subscription date belongs in this reusable guide. OAuth refresh and MCP
+Events subscription renewal are separate lifecycles: a valid token does not renew the
+subscription, and an active subscription does not refresh a client's token.
+
+## 9. Observed domains and their roles
+
+These are roles observed in the approved local setup, not a complete future network
+allowlist. Tenant and connection identifiers remain private. Verify hosts again when
+moving tenants, accounts or product versions; don't permit suffix wildcards.
+
+| Host | Role in this setup |
+| --- | --- |
+| `api.openai.com` | Secure MCP Tunnel runtime/control connection; no additional tunnel dataplane hostname was observed |
+| `<tenant>.us.auth0.com` | Tenant-specific OAuth authorization, token endpoint and JWKS; replace the placeholder with the verified issuer's host |
+| `connectors.api.openai.com` | Observed MCP Events callback destination; validate the actual subscription hostname before allowing it |
+| `chatgpt.com` | Browser UI and connection callback flow; not the local bridge listener |
+| `manage.auth0.com` | Auth0 administration UI only; not a bridge token/JWKS endpoint |
+
+The bridge still listens on HTTPS loopback. A browser domain is not automatically an event
+callback allowlist entry. Keep the callback allowlist exact and retain public-IP DNS checks,
+TLS validation, signed challenge and redirect rejection. Do not replace the configured
+issuer/JWKS with the Auth0 administration host, or assume that another regional tenant uses
+the `.us.auth0.com` suffix. No private tenant name, token or callback path is published here.
