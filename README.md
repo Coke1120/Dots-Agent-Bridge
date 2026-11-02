@@ -16,6 +16,10 @@ The bridge can run beside Hermes on your Mac. See the [local-service walkthrough
 
 Dot reaches the local server through an explicitly configured Secure MCP Tunnel or fixed authenticated HTTPS ingress. OAuth remains required. The local runner accepts only an explicit loopback resource plus an optional exact tunnel audience; the normal HTTPS server remains unchanged. Hermes polls replies; proactive injection into its native UI is not implemented. The [official mcp-serve evaluation](docs/hermes-mcp-serve-evaluation.md) explains why that plugin does not replace this flow.
 
+## Migration
+
+See [moving Hermes, the bridge, or Auth0](docs/migration.md) for transport requirements, stable owner mapping, protected backup/restore, identity cutover and rollback. These are manual procedures; no live migration is claimed.
+
 ## Run offline checks
 
 Python 3.12+:

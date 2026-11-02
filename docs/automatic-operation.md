@@ -35,6 +35,8 @@ Hermes receives the result inside its active turn; after a bounded wait expires 
 can resume by request ID. This is not unsolicited injection into an idle Hermes CLI.
 Native gateway messaging is not needed and Slack/Teams are not involved.
 
+For a different computer or Auth0 account, use the [migration guide](migration.md) before changing paths, identities or audiences.
+
 ## 1. Update and install the Hermes skill
 
 Use the existing isolated bridge venv; do not install bridge dependencies into Hermes.
