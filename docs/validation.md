@@ -116,8 +116,11 @@ refresh evidence, not merely successful login or a configured grant checkbox.
 The new ChatGPT connection retains the same client and HTTPS audience, uses
 client_secret_post with read/respond/subscribe/offline_access and existing openid, and
 passes an authenticated read. The same automation was updated to its new source. Its
-post-change automatic round trip is pending; ChatGPT-managed refresh, subscription renewal
-and reboot recovery have not been observed. Earlier automatic successes remain evidence
-for the earlier connection. See the operational guide for domain roles and separate token
+post-change automatic round trip subsequently completed in **24.344 seconds**: one HTTP
+200 event and a genuine dot response retrieved by Hermes as completed revision 1. Exactly
+one subscription was active, the old subscription was inactive, and the services and
+automation were active at verification. This is evidence for the revised connection and
+trigger, not just the earlier setup. ChatGPT-managed refresh, full-period subscription
+renewal and reboot recovery have not been observed. See the operational guide for domain roles and separate token
 and subscription lifecycles. No Cloud account changes or live calls were made for this
 documentation update.

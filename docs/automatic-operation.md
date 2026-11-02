@@ -455,9 +455,12 @@ A new ChatGPT renewal connection uses the same OAuth client, the exact HTTPS aud
 `client_secret_post`, and `bridge:read bridge:respond bridge:subscribe offline_access`
 plus its existing `openid` scope. An authenticated read succeeded. The existing automation
 was updated in place to the new event source; no duplicate handler is intended. **The
-final automatic round trip after that connection change remains pending.** Earlier
-successful round trips do not establish that the revised connection/handler works end to
-end. ChatGPT-managed refresh, subscription renewal and reboot recovery remain unobserved.
+automatic round trip after that connection change is now verified: 24.344 seconds**, one
+HTTP 200 event, and the genuine dot response retrieved by Hermes as completed revision 1.
+At verification there was exactly one active subscription, the old subscription was
+inactive, and the services and automation were active. This confirms the revised
+connection/trigger path without claiming continuous availability. ChatGPT-managed refresh,
+full-period subscription renewal and reboot recovery remain unobserved.
 Never treat a refreshed connection card or webhook ACK as a completed reply.
 
 Inspect the current private subscription's `refreshBefore` and observe real renewal before
