@@ -11,7 +11,8 @@ from starlette.concurrency import run_in_threadpool
 
 from .auth import Denied, JWTAuth, Policy, SCOPES
 from .callback import Callback, CallbackError
-from .protocol import Protocol, VERSION
+from .protocol import Protocol
+from .wire import MODERN, WireError, complete, request_version
 from .store import Conflict, Store
 
 logger = logging.getLogger(__name__)
@@ -84,8 +85,6 @@ def create_app(store, auth, resource, issuer, run_worker=True):
             return Response(status_code=401, headers={"WWW-Authenticate": f'Bearer resource_metadata="{metadata_url}"'})
         if request.method != "POST":
             return Response(status_code=405, headers={"Allow": "POST"})
-        if request.headers.get("mcp-protocol-version", VERSION) != VERSION:
-            return JSONResponse({"error": "unsupported_protocol_version"}, status_code=400)
         if request.headers.get("content-type", "").split(";")[0] != "application/json":
             return Response(status_code=415)
         body = bytearray()
@@ -94,20 +93,20 @@ def create_app(store, auth, resource, issuer, run_worker=True):
             if len(body) > MAX_BODY:
                 return Response(status_code=413)
         rpc_id = None
-        def error(code, message, data=None):
+        def error(code, message, data=None, status=200):
             item = {"code": code, "message": message}
             if data is not None:
                 item["data"] = data
-            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "error": item})
+            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "error": item}, status_code=status, headers={"Cache-Control": "no-store"})
         try:
             msg = json.loads(body)
         except (ValueError, UnicodeDecodeError):
             return error(-32700, "Parse error")
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):
-            return error(-32600, "Invalid request")
+            return error(-32600, "Invalid request", status=400)
         if "id" not in msg:
             # No mutations accepted as notifications.
-            if msg["method"] in ("notifications/initialized", "notifications/cancelled"):
+            if request.headers.get("mcp-protocol-version") in (None, "2025-11-25") and msg["method"] in ("notifications/initialized", "notifications/cancelled"):
                 return Response(status_code=202)
             return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Request id required"}}, status_code=400)
         rpc_id = msg["id"]
@@ -118,16 +117,26 @@ def create_app(store, auth, resource, issuer, run_worker=True):
         if not isinstance(params, dict):
             return error(-32602, "Invalid params")
         try:
+            version = request_version(request.headers, msg["method"], params)
+        except WireError as e:
+            # Numeric protocol code only: never log bearer tokens, metadata or content.
+            logger.warning("mcp_wire_rejected code=%d", e.code)
+            return error(e.code, e.message, e.data, status=400)
+        try:
+            if version == MODERN and msg["method"] == "initialize":
+                raise KeyError("legacy_method")
             result = await run_in_threadpool(protocol.dispatch, p, msg["method"], params)
-            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result})
+            if version == MODERN:
+                result = complete(result, msg["method"])
+            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result}, headers={"Cache-Control": "no-store"})
         except Denied:
             return error(-32001, "Forbidden")
         except Conflict as e:
-            return error(-32602, str(e))
+            return error(-32602, str(e), status=400 if version == MODERN else 200)
         except CallbackError as e:
             return error(-32015, "CallbackEndpointError", {"reason": e.reason})
         except KeyError:
-            return error(-32601, "Method not found")
+            return error(-32601, "Method not found", status=404 if version == MODERN else 200)
         except Exception:
             logger.error("mcp_request_failed")
             return error(-32603, "Internal error")

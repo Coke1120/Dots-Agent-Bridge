@@ -2,7 +2,9 @@
 
 ## Transport and identity
 
-One authenticated `/mcp` endpoint handles `initialize`, `ping`, `tools/list`, `tools/call`, `events/list`, `events/subscribe`, and `events/unsubscribe`. It negotiates MCP `2025-11-25` and returns JSON responses; GET/DELETE return 405. Sessions, SSE streams, batch requests, MCP 2.0 `server/discover`, prompts and resources are not advertised. Supported initialization/cancellation notifications are ACKed with 202. MCP transport cancellation does not cancel a queued mailbox request; use `cancel_request` for that.
+One authenticated `/mcp` endpoint supports modern MCP `2026-07-28` (`server/discover` and per-request metadata), and legacy `2025-11-25` (`initialize`). Both serve `ping`, tools and the MCP Events extension. Modern requests validate required `_meta` fields and mirrored protocol/method/name headers before dispatch, including Base64-encoded names; malformed/mismatched headers return HTTP 400 / -32020, unsupported versions 400 / -32022, and unknown methods 404 / -32601. Metadata client identity never replaces verified OAuth claims. Modern results carry `resultType: complete` and server identity; discovery/list caching is private with zero TTL, and HTTP results use `Cache-Control: no-store` because grants are rechecked on every request.
+
+JSON responses only; GET/DELETE return 405. Sessions, SSE streams, prompts/resources, sampling and elicitation are not advertised. Legacy initialization/cancellation notifications are ACKed with 202. Modern HTTP notifications are rejected. Transport cancellation does not cancel queued mailbox work; use `cancel_request`. The discovery-only bootstrap still denies every MCP request and is not the authenticated runtime server.
 
 The dedicated local CLI allows `http://127.0.0.1:PORT/mcp` as the resource and optionally one operator-pinned HTTPS tunnel audience. It still validates all token signatures/claims and grants. Remote HTTPS mode does not enable this exception. Local resource metadata uses the exact loopback origin; the tunnel performs its documented external discovery rewriting.
 

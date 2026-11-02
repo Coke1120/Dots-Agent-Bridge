@@ -11,7 +11,7 @@ Local Python 3.12 checks:
 git diff --check
 ```
 
-The test suite currently has **81 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
+The test suite at the pre-modern baseline had **81 passing cases**, zero failures. Starlette emits one deprecation warning for its httpx TestClient integration; it does not affect the test results. The official MCP SDK test uses its own httpx ASGI transport.
 
 | Area | Evidence |
 | --- | --- |
@@ -41,4 +41,12 @@ Added a discovery-only bootstrap test proving that metadata remains available wh
 
 ## Hermes MCP SDK 2.3 compatibility
 
-Mac mini preflight reported MCP SDK 2.3.0 and Python 3.14.9. Cloud tested the full 81-case suite in independent Python 3.12 environments using SDK 1.30.0 and SDK 2.3.0: both passed. Initial SDK 2 test-harness failures (two-value transport streams and snake_case model fields) were fixed in `tests/sdk_compat.py`; server protocol negotiation remains `2025-11-25`. The helper selects httpx2 for SDK 2, matching that SDK's client API. CI now tests both lockfiles on Python 3.12 and 3.14. `tests/requirements-mcp23.lock` is only an isolated compatibility-test environment, not a request to modify Hermes. Actual Hermes OAuth UI/login and live Tunnel interoperability remain pending.
+Mac mini preflight reported MCP SDK 2.3.0 and Python 3.14.9. Cloud tested the full 81-case suite in independent Python 3.12 environments using SDK 1.30.0 and SDK 2.3.0: both passed. Initial SDK 2 test-harness failures (two-value transport streams and snake_case model fields) were fixed in `tests/sdk_compat.py`; at that baseline server protocol negotiation remained `2025-11-25`. The helper selects httpx2 for SDK 2, matching that SDK's client API. CI now tests both lockfiles on Python 3.12 and 3.14. `tests/requirements-mcp23.lock` is only an isolated compatibility-test environment, not a request to modify Hermes. Actual Hermes OAuth UI/login and live Tunnel interoperability remain pending.
+
+## Modern discovery regression
+
+The live integration reported HTTP 400 for `server/discover`, but retained logs did not include protocol headers, params or response body. The new fixtures follow the official 2026-07-28 schema; they are not represented as a replay of the unavailable live payload. Tests cover authenticated role-scoped discovery, metadata/header/version validation, tool/header encoding, per-request role/owner isolation, event subscription and response storage. SDK 2's modern `Client(mode="auto")` now verifies discovery, tools and mailbox calls with no initialize fallback; the legacy SDK sessions remain covered.
+
+A failed modern transport validation logs only `mcp_wire_rejected code=<integer>`. No request body, client metadata, tokens, callback URLs or content are logged. If live refresh still fails, record only HTTP status and this numeric code; use the code to request a narrow sanitized schema diagnostic, never enable raw payload logging. Real dot response and webhook end-to-end validation remain local integration gates.
+
+Local handoff: stop bridge, fetch the existing feature branch, fast-forward only after verifying a clean checkout, install the updated package with the bridge's isolated venv (`python -m pip install --no-deps .`), and restart the existing approved foreground command. Do not recreate the SQLite store, policy, keys, OAuth grants or tunnel. Refresh the existing ChatGPT plugin, verify modern discovery/tools/events, then read the queued synthetic request by its existing ID. Respect expiry; do not claim completion until a real dot writes a response and Hermes retrieves it.
