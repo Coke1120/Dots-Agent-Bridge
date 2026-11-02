@@ -252,3 +252,54 @@ def test_concurrent_same_submission_is_atomic(env):
         results = list(pool.map(lambda _: env["store"].submit(p, args), range(8)))
     assert len({r["id"] for r in results}) == 1
     assert len(env["store"].all("request")) == 1
+
+
+def test_latest_response_follows_revision_after_clock_moves_back(env):
+    request = submit(env)
+    args = {"request_id": request["id"], "content": "Working", "state": "processing",
+            "expected_revision": 0, "idempotency_key": "progress"}
+    call(env, "record_response", args, "alice-dot")
+    env["now"][0] -= 10
+    final = call(env, "record_response", {**args, "content": "Done", "state": "completed",
+                 "expected_revision": 1, "idempotency_key": "final"}, "alice-dot")
+    got = call(env, "get_request", {"request_id": request["id"]})
+    assert got["request"]["state"] == "completed"
+    assert got["latest_responses"] == [final]
+
+
+def test_retention_batch_preserves_recent_cross_owner_history(env):
+    old = [submit(env, key="old-1"), submit(env, key="old-2")]
+    for request in old:
+        call(env, "record_response", {"request_id": request["id"], "content": "old response",
+             "state": "completed", "expected_revision": 0, "idempotency_key": "reply"}, "alice-dot")
+    env["now"][0] += 6 * 86400
+    recent = submit(env, key="recent")
+    bob = call(env, "submit_message", {"content": "Bob history", "idempotency_key": "bob"}, "bob-hermes")
+    for request, principal in ((recent, "alice-dot"), (bob, "bob-dot")):
+        call(env, "record_response", {"request_id": request["id"], "content": "retained response",
+             "state": "completed", "expected_revision": 0, "idempotency_key": "reply"}, principal)
+    env["now"][0] += 2 * 86400
+    env["store"].deliver_once()
+    assert {r["id"] for r in env["store"].all("request")} == {recent["id"], bob["id"]}
+    assert {r["request_id"] for r in env["store"].all("response")} == {recent["id"], bob["id"]}
+    assert {c["id"] for c in env["store"].all("conversation")} == {recent["conversation_id"], bob["conversation_id"]}
+
+
+def test_retention_batch_failure_rolls_back_requests_and_responses(env, monkeypatch):
+    request = submit(env)
+    call(env, "record_response", {"request_id": request["id"], "content": "retained until commit",
+         "state": "completed", "expected_revision": 0, "idempotency_key": "reply"}, "alice-dot")
+    env["now"][0] += 8 * 86400
+    delete = env["store"].delete
+    def fail_response_delete(kind, item):
+        if kind == "response":
+            raise RuntimeError("Synthetic interrupted purge")
+        delete(kind, item)
+    monkeypatch.setattr(env["store"], "delete", fail_response_delete)
+    with pytest.raises(RuntimeError, match="Synthetic interrupted purge"):
+        env["store"].deliver_once()
+    assert len(env["store"].all("request")) == 1
+    assert len(env["store"].all("response")) == 1
+    monkeypatch.setattr(env["store"], "delete", delete)
+    env["store"].deliver_once()
+    assert env["store"].all("request") == env["store"].all("response") == []

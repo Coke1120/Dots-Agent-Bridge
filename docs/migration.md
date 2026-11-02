@@ -60,7 +60,7 @@ Do not expose the local bridge on the LAN or disable TLS to make the example wor
 1. Install Hermes independently using its supported instructions. Copy only the reviewed
    bridge MCP entry and `talk-to-dot` skill, not the entire old Hermes profile/token cache.
    The bridge Python venv and database stay on Mac mini.
-2. Supply the same pre-registered Hermes OAuth client ID, `bridge:submit bridge:read`,
+2. Supply the same pre-registered Hermes OAuth client ID, `bridge:submit bridge:read offline_access`,
    timeout 60 and exact HTTPS resource. Keep the forwarding process running during use.
    Follow [Hermes MCP configuration](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md).
 3. Transfer only the approved public CA certificate needed to validate the bridge leaf;

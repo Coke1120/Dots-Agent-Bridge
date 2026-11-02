@@ -179,5 +179,5 @@ class Callback:
             if not (200 <= status < 300 and time.monotonic() - started < 15
                     and isinstance(echoed, str) and hmac.compare_digest(challenge, echoed)):
                 raise ValueError()
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             raise CallbackError("challenge_failed") from None

@@ -17,6 +17,8 @@ def test_official_client_round_trip(env):
                     assert field(init, "protocolVersion", "protocol_version") == "2025-11-25"
                     tools = await session.list_tools()
                     assert "submit_message" in {t.name for t in tools.tools}
+                    empty = await session.call_tool("list_requests")
+                    assert json.loads(empty.content[0].text)["requests"] == []
                     result = await session.call_tool("submit_message", {"content": "Synthetic SDK message", "idempotency_key": "sdk"})
                     assert not field(result, "isError", "is_error")
                     request = json.loads(result.content[0].text)
@@ -47,6 +49,8 @@ def test_sdk2_modern_auto_discovery(env):
             async with Client(transport, mode='auto') as client:
                 tools = await client.list_tools()
                 assert 'submit_message' in {t.name for t in tools.tools}
+                empty = await client.call_tool('list_requests')
+                assert json.loads(empty.content[0].text)['requests'] == []
                 result = await client.call_tool('submit_message', {'content': 'SDK2 modern synthetic', 'idempotency_key': 'modern-sdk'})
                 assert not result.is_error
                 rid = json.loads(result.content[0].text)['id']

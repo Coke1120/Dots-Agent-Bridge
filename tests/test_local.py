@@ -50,6 +50,7 @@ def test_local_check_and_templates_are_passive(local_config, capsys):
     assert not Path(config['database']).exists()
     assert 'http://127.0.0.1:8765/mcp' in hermes_snippet(config)
     assert 'auth: oauth' in hermes_snippet(config)
+    assert 'bridge:submit bridge:read offline_access' in hermes_snippet(config)
     assert 'bridge:respond' not in hermes_snippet(config)
     plist = plistlib.loads(launchd_template(local_config))
     assert plist['ProgramArguments'][-1] == str(local_config)

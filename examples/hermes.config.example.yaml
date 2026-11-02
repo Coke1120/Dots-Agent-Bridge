@@ -6,7 +6,8 @@ mcp_servers:
     oauth:
       # Explicit pre-registration avoids granting an arbitrary dynamically registered client.
       client_id: "${BRIDGE_HERMES_CLIENT_ID}"
-      scope: "bridge:submit bridge:read"
+      # Request client-managed refresh tokens; provider must allow offline access.
+      scope: "bridge:submit bridge:read offline_access"
       redirect_host: localhost
       redirect_port: 27890
     timeout: 60

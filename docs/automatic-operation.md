@@ -50,8 +50,8 @@ For a different computer or Auth0 account, use the [migration guide](migration.m
 ## 1. Update and install the Hermes skill
 
 Use the existing isolated bridge venv; do not install bridge dependencies into Hermes.
-From a clean reviewed checkout on Mac mini (or MBA), fast-forward the existing feature
-branch, then install the package and validate the existing private configuration:
+From a clean reviewed checkout on Mac mini (or MBA), select the reviewed merged `main`
+commit, then install the package and validate the existing private configuration:
 
 ```sh
 /path/to/bridge-venv/bin/python -m pip install --no-deps /path/to/hermes-dots-bridge
@@ -409,6 +409,12 @@ The bridge is a resource server, not an OAuth client. It never issues or stores 
 refresh tokens. Hermes and the ChatGPT connection must each manage their own provider
 refresh flow. `JWTAuth` rejects expired tokens; `wait_response` revalidates authentication
 while waiting. Neither launchd KeepAlive nor webhook retries repair expired OAuth grants.
+The generated Hermes configuration requests `bridge:submit bridge:read offline_access`;
+the provider must separately permit refresh tokens and API offline access. This does not
+change existing profiles or grants. Missing/expired authentication, including during a
+wait, returns HTTP 401 with resource metadata. Insufficient scopes return HTTP 403 with
+the required scope challenge; local policy revocation remains denied and cannot be repaired
+by requesting more scopes. The client's supported OAuth flow decides how to recover.
 Test each client's renewal past access-token expiry using supported login controls; keep
 refresh tokens out of logs. A successful fresh login is not evidence of successful refresh.
 

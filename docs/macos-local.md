@@ -19,7 +19,7 @@ Hermes retrieves replies with `get_request`/`list_responses`. This does **not** 
 Use Python 3.12+ on the selected Mac and the reviewed PR branch/commit. These commands do not enable a service or connect accounts:
 
 ```sh
-git clone --branch feat/authenticated-async-bridge https://github.com/Coke1120/hermes-dots-bridge.git
+git clone --branch main https://github.com/Coke1120/hermes-dots-bridge.git
 cd hermes-dots-bridge
 # Use a supported Python >=3.12, in a dedicated bridge venv (not Hermes' venv).
 python3 -m venv .venv
@@ -79,9 +79,9 @@ Print, review, then manually merge this stanza into `~/.hermes/config.yaml` (do 
 .venv/bin/hermes-dots-bridge print-hermes --config "$HOME/Library/Application Support/hermes-dots-bridge/config.json"
 ```
 
-Set `BRIDGE_HERMES_CLIENT_ID` locally. Register `http://localhost:27890/callback` for this public PKCE client and authorize `bridge:submit bridge:read`. Run `hermes mcp login hermes-dots-bridge`, then restart/reload Hermes. The supplied entry is only the bridge; it does not expose approvals or general Hermes execution tools to dot.
+Set `BRIDGE_HERMES_CLIENT_ID` locally. Register `http://localhost:27890/callback` for this public PKCE client and authorize `bridge:submit bridge:read offline_access` for client-managed renewal. The provider must allow offline access and the refresh grant; see [renewal setup](connection.md). Use the explicitly selected profile's supported login command from the automatic-operation guide, then reload MCP in that profile. The supplied entry is only the bridge; it does not expose approvals or general Hermes execution tools to dot.
 
-First test with synthetic text. Ask Hermes to submit it, retain the request/conversation IDs and poll for a stored response. Then test a follow-up and cancellation. The dot needs its own distinct client grant with `bridge:read bridge:respond bridge:subscribe`.
+First test with synthetic text. Ask Hermes to submit it, retain the request/conversation IDs and poll for a stored response. Then test a follow-up and cancellation. The dot needs its own distinct client grant with `bridge:read bridge:respond bridge:subscribe offline_access` for renewal.
 
 ## Optional: start bridge at user login
 

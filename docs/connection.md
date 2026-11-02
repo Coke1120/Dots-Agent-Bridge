@@ -1,12 +1,23 @@
-# Connection plan — not yet executed
+# Connection setup reference
 
-For the selected MBA hosting workflow, start with [macos-local.md](macos-local.md); the HTTPS instructions below remain the alternative hosting profile.
+For the current Mac mini workflow, start with [automatic operation](automatic-operation.md).
+That guide and [validation evidence](validation.md) distinguish verified round trips and
+Hermes refresh from pending ChatGPT refresh, subscription renewal and reboot checks.
+The HTTPS instructions below also support the alternative hosted profile.
 
 The implementation is a resource server, not an authorization server. The provider handles interactive user login, consent, OAuth authorization-code flow, S256 PKCE, redirect validation, refresh tokens and client registration. No credentials are issued by this bridge.
 
 ## External provider profile
 
-Auth0's [MCP authorization guide](https://auth0.com/ai/docs/mcp/get-started/authorization-for-your-mcp-server) is the reference integration option; no tenant has been created or configured. Enable its **Resource Parameter Compatibility Profile** and **Include Issuer in Authorization Responses** as described there. Register an API with identifier exactly equal to `BRIDGE_RESOURCE`, for example `https://bridge.example.com/mcp`, and RS256 signing. Enable the four bridge scopes. Confirm discovery advertises S256 and the `resource` sent in both authorization and token requests binds the resulting access token's audience to this API.
+Auth0's [MCP authorization guide](https://auth0.com/ai/docs/mcp/get-started/authorization-for-your-mcp-server) is the reference integration option. Enable its **Resource Parameter Compatibility Profile** and **Include Issuer in Authorization Responses** as described there. Register an API with identifier exactly equal to `BRIDGE_RESOURCE`, for example `https://bridge.example.com/mcp`, and RS256 signing. Enable the four bridge scopes. Confirm discovery advertises S256 and the `resource` sent in both authorization and token requests binds the resulting access token's audience to this API.
+
+For client-managed renewal, also enable the provider's refresh-token grant and the API's
+Allow Offline Access setting, and request `offline_access` during each client's supported
+authorization flow. Auth0 requires these distinct settings to issue a refresh token; see
+[Get Refresh Tokens](https://auth0.com/docs/secure/tokens/refresh-tokens/get-refresh-tokens).
+The generated Hermes snippet and YAML example include that scope. Changing a template does
+not update an existing grant or issue a token: verify actual refresh in each client, with
+rotation and private storage. The bridge neither stores refresh tokens nor renews clients.
 
 Use separate OAuth client identities for Hermes and ChatGPT. Pre-registration is the initial setup option; CIMD or DCR may be used only after the provider and client combination is validated. In every case put the actual issued client identifier in local policy, not a display name. Client registration alone grants no bridge access.
 
@@ -27,9 +38,9 @@ Policy is reread on every tool call and delivery attempt. Atomically replace the
 
 ## ChatGPT / existing dot
 
-Follow the current [OpenAI connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt). Add the custom MCP URL in ChatGPT Plugins, configure OAuth, inspect the tools and events, then attach the plugin to the existing dot. Account/workspace policies and event availability must be verified there. The bridge uses initialization-based MCP `2025-11-25`; clients requiring only MCP 2.0 will need an adapter update before connection.
+Follow the current [OpenAI connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt). Add the custom MCP URL in ChatGPT Plugins, configure OAuth, inspect the tools and events, then attach the plugin to the existing dot. Account/workspace policies and event availability must be verified there. The bridge supports modern per-request MCP `2026-07-28` discovery and legacy initialization-based MCP `2025-11-25`; both SDK generations are tested.
 
-Register exactly the OAuth redirect URI shown by ChatGPT's MCP management UI. Do not guess it. Use the configured client's actual identifier in the dot grant and authorize scopes `bridge:read bridge:respond bridge:subscribe`. Confirm discovery exposes `request.created`, the dot read/respond tools, and no Hermes submission tool.
+Register exactly the OAuth redirect URI shown by ChatGPT's MCP management UI. Do not guess it. Use the configured client's actual identifier in the dot grant and authorize scopes `bridge:read bridge:respond bridge:subscribe offline_access` for renewal. Confirm discovery exposes `request.created`, the dot read/respond tools, and no Hermes submission tool.
 
 After explicit user authorization, instruct the existing dot along these lines:
 
@@ -37,11 +48,11 @@ After explicit user authorization, instruct the existing dot along these lines:
 
 The callback challenge must succeed before the subscription activates. Verify the finite `refreshBefore` and refresh lifecycle. A webhook `2xx` only proves receipt; inspect a stored response before declaring the round-trip successful. The bridge cannot force dot to process events, maintain native thread continuity, or deduplicate external side effects that dot performs.
 
-## Hermes on MBA
+## Hermes on the selected computer
 
-No MBA files have been changed. At the separately approved connection step, merge [the YAML template](../examples/hermes.config.example.yaml) into `~/.hermes/config.yaml`. Register the fixed loopback callback `http://localhost:27890/callback` for the Hermes public client, require PKCE S256, and populate its client ID in the local environment. No client secret is needed for a properly configured public PKCE client.
+Use the explicit dedicated profile from the automatic-operation guide. At the separately approved connection step, merge [the YAML template](../examples/hermes.config.example.yaml) into that profile's `config.yaml`. Register the fixed loopback callback `http://localhost:27890/callback` for the Hermes public client, require PKCE S256, and populate its client ID in the local environment. No client secret is needed for a properly configured public PKCE client.
 
-Run `hermes mcp login hermes-dots-bridge` from an interactive MBA terminal, complete the provider login/consent, then restart Hermes or reload MCP. This uses the [documented remote MCP OAuth flow](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md); the exact installed Hermes version still needs validation. It should show only Hermes' five tools.
+Run `hermes -p dot-bridge mcp login hermes-dots-bridge` from an interactive terminal, complete the provider login/consent, then reload MCP in that same profile. This uses the [documented remote MCP OAuth flow](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md); check the installed version's help. With both submit/read scopes it should show the six Hermes tools in the README permissions table.
 
 Suggested usage:
 

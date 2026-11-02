@@ -173,7 +173,7 @@ def check_database_permissions(path):
 def hermes_snippet(config):
     return ('mcp_servers:\n  hermes-dots-bridge:\n    url: ' + json.dumps(config["resource"]) + '\n'
             '    auth: oauth\n    oauth:\n      client_id: "${BRIDGE_HERMES_CLIENT_ID}"\n'
-            '      scope: "bridge:submit bridge:read"\n      redirect_host: localhost\n'
+            '      scope: "bridge:submit bridge:read offline_access"\n      redirect_host: localhost\n'
             '      redirect_port: 27890\n    timeout: 60\n')
 
 
