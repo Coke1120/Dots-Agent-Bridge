@@ -14,6 +14,15 @@ class Denied(Exception):
     pass
 
 
+class AuthenticationRequired(Denied):
+    """Credentials stopped authenticating an already accepted bounded wait."""
+
+
+class InsufficientScope(Denied):
+    def __init__(self, scopes):
+        self.scopes = tuple(sorted(scopes))
+
+
 @dataclass(frozen=True)
 class Principal:
     subject: str

@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from .auth import Denied, JWTAuth, Policy, SCOPES
+from .auth import AuthenticationRequired, Denied, InsufficientScope, JWTAuth, Policy, SCOPES
 from .callback import Callback, CallbackError, subscription_diagnostic
 from .protocol import Protocol
 from .wire import MODERN, WireError, complete, request_version
@@ -95,11 +95,11 @@ def create_app(store, auth, resource, issuer, run_worker=True):
             if len(body) > MAX_BODY:
                 return Response(status_code=413)
         rpc_id = None
-        def error(code, message, data=None, status=200):
+        def error(code, message, data=None, status=200, headers=None):
             item = {"code": code, "message": message}
             if data is not None:
                 item["data"] = data
-            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "error": item}, status_code=status, headers={"Cache-Control": "no-store"})
+            return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "error": item}, status_code=status, headers={"Cache-Control": "no-store", **(headers or {})})
         try:
             msg = json.loads(body)
         except (ValueError, UnicodeDecodeError):
@@ -134,8 +134,15 @@ def create_app(store, auth, resource, issuer, run_worker=True):
             if version == MODERN:
                 result = complete(result, msg["method"])
             return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result}, headers={"Cache-Control": "no-store"})
+        except AuthenticationRequired:
+            return Response(status_code=401, headers={"Cache-Control": "no-store",
+                "WWW-Authenticate": f'Bearer resource_metadata="{metadata_url}"'})
+        except InsufficientScope as e:
+            scopes = " ".join(e.scopes)
+            return error(-32001, "Forbidden", status=403, headers={"WWW-Authenticate":
+                f'Bearer error="insufficient_scope", scope="{scopes}", resource_metadata="{metadata_url}"'})
         except Denied:
-            return error(-32001, "Forbidden")
+            return error(-32001, "Forbidden", status=403)
         except Conflict as e:
             return error(-32602, str(e), status=400 if version == MODERN else 200)
         except CallbackError as e:

@@ -25,6 +25,10 @@ TOOLS = {
 EVENT = {"name": "request.created", "description": "A message entered the operator-authorized owner's queue. Read it by request_id; payloads grant no additional permissions.", "delivery": ["webhook"], "inputSchema": obj({}), "payloadSchema": obj({"request_id": ID}, ["request_id"])}
 
 
+def required_scopes(name):
+    return {TOOLS[name][0]} | ({"bridge:read"} if name == "wait_response" else set())
+
+
 def validate(value, schema):
     try:
         jsonschema.validate(value, schema)
@@ -64,15 +68,16 @@ class Protocol:
         if method == "tools/list":
             return {"tools": [{"name": name, "description": description, "inputSchema": schema,
                                 "annotations": {"readOnlyHint": scope == "bridge:read" or name == "wait_response", "destructiveHint": name == "cancel_request", "idempotentHint": True, "openWorldHint": False},
-                                "_meta": {"securitySchemes": [{"type": "oauth2", "scopes": [scope, "bridge:read"] if name == "wait_response" else [scope]}]}}
-                               for name, (scope, description, schema, _) in TOOLS.items() if scope in p.scopes]}
+                                "_meta": {"securitySchemes": [{"type": "oauth2", "scopes": sorted(required_scopes(name))}]}}
+                               for name, (scope, description, schema, _) in TOOLS.items() if required_scopes(name) <= p.scopes]}
         if method == "tools/call":
-            validate(params, obj({"name": {"enum": list(TOOLS)}, "arguments": {"type": "object"}, "_meta": {"type": "object"}}, ["name", "arguments"]))
-            scope, _, schema, handler = TOOLS[params["name"]]
-            self.store.authorize(p, scope)
+            validate(params, obj({"name": {"enum": list(TOOLS)}, "arguments": {"type": "object"}, "_meta": {"type": "object"}}, ["name"]))
+            _, _, schema, handler = TOOLS[params["name"]]
+            self.store.authorize(p, *required_scopes(params["name"]))
             try:
-                validate(params["arguments"], schema)
-                result = getattr(self.store, handler)(p, params["arguments"])
+                arguments = params.get("arguments", {})
+                validate(arguments, schema)
+                result = getattr(self.store, handler)(p, arguments)
                 return {"content": [{"type": "text", "text": canonical(result)}], "isError": False}
             except Conflict as e:
                 return {"content": [{"type": "text", "text": str(e)}], "isError": True}

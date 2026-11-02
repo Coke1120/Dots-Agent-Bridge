@@ -5,7 +5,7 @@ import time
 
 from starlette.concurrency import run_in_threadpool
 
-from .auth import Denied
+from .auth import AuthenticationRequired, Denied
 from .store import canonical
 
 
@@ -23,7 +23,10 @@ class Waiter:
             deadline = None
             while True:
                 # Expired/revoked credentials cannot continue a previously accepted wait.
-                current = await run_in_threadpool(auth, request.headers.get('authorization'))
+                try:
+                    current = await run_in_threadpool(auth, request.headers.get('authorization'))
+                except Denied:
+                    raise AuthenticationRequired() from None
                 if current != principal:
                     raise Denied()
                 result = await run_in_threadpool(protocol.dispatch, current, 'tools/call', params)

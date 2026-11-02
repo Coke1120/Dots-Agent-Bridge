@@ -82,3 +82,25 @@ def test_wait_snapshot_does_not_count_remapped_subscription(env):
     env['policy_path'].write_text(json.dumps({'grants': env['grants']}))
     snap = call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0})
     assert snap['active_subscriptions'] == 0
+
+
+def test_wait_authentication_expiry_returns_http_challenge_without_losing_request(env):
+    from fastapi.testclient import TestClient
+    from bridge.app import create_app
+    request = submit(env)
+    calls = []
+    def expiring_auth(header):
+        calls.append(header)
+        if len(calls) > 1:
+            raise Denied()
+        return env['people']['alice-hermes']
+    app = create_app(env['store'], expiring_auth, 'https://bridge.example/mcp',
+                     'https://issuer.example', run_worker=False)
+    with TestClient(app) as client:
+        response = client.post('/mcp', headers={'Authorization': 'Bearer synthetic-expiring'},
+            json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                  'params': {'name': 'wait_response', 'arguments': {'request_id': request['id'], 'timeout_seconds': 0}}})
+    assert response.status_code == 401
+    assert 'resource_metadata="https://bridge.example/.well-known/oauth-protected-resource"' in response.headers['www-authenticate']
+    assert 'synthetic-expiring' not in response.text
+    assert call(env, 'wait_response', {'request_id': request['id'], 'timeout_seconds': 0})['state'] == 'queued'

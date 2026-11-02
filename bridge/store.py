@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from cryptography.fernet import Fernet
 
-from .auth import Denied, Principal
+from .auth import Denied, InsufficientScope, Principal
 from .callback import CallbackError, headers, signing_key, validate_url
 
 TERMINAL = {"completed", "failed", "cancelled", "expired"}
@@ -72,23 +72,28 @@ class Store:
     def delete(self, kind, item):
         self.db.execute("DELETE FROM records WHERE kind=? AND id=?", (kind, item["id"]))
 
-    def authorize(self, p, scope):
+    def authorize(self, p, *scopes):
         self.policy.recheck(p)
-        if scope not in p.scopes:
-            raise Denied()
+        if not set(scopes) <= p.scopes:
+            raise InsufficientScope(scopes)
 
     def maintain(self):
         now = self.clock()
+        purged = set()
         for r in self.all("request"):
+            if r["created"] + 7 * 86400 <= now:
+                purged.add(r["id"])
+                self.delete("request", r)
+                continue
             if r["expires"] <= now and r["state"] not in TERMINAL:
                 r["state"] = "expired"
                 r["revision"] += 1
                 self.put("request", r)
-            if r["created"] + 7 * 86400 <= now:
-                for response in self.all("response", r["owner"]):
-                    if response["request_id"] == r["id"]:
-                        self.delete("response", response)
-                self.delete("request", r)
+        if purged:
+            # Scan once for the whole batch, rather than once per purged request.
+            for response in self.all("response"):
+                if response["request_id"] in purged:
+                    self.delete("response", response)
         for event in self.all("outbox"):
             if event["created"] + 7 * 86400 <= now:
                 self.delete("outbox", event)
@@ -159,8 +164,9 @@ class Store:
             # Bounded pages: explicit earlier cursor avoids silent context loss.
             before = a.get("before_sequence", r["sequence"] + 1)
             context = [x for x in context if x["sequence"] < before][-10:]
+            context_ids = {y["id"] for y in context}
             responses = sorted([x for x in self.all("response", p.owner)
-                                if x["request_id"] in {y["id"] for y in context}], key=lambda x: (x["created"], x["revision"]))
+                                if x["request_id"] in context_ids], key=lambda x: x["revision"])
             latest = {x["request_id"]: x for x in responses}
             deliveries = [{k: e.get(k) for k in ("id", "status", "attempts", "last_http_status")}
                           for e in self.all("outbox", p.owner) if e["request_id"] == r["id"]]
@@ -190,8 +196,7 @@ class Store:
     def wait_snapshot(self, p, a):
         """Short transaction only; HTTP layer sleeps without holding SQLite lock."""
         with self.transaction():
-            self.authorize(p, "bridge:submit")
-            self.authorize(p, "bridge:read")
+            self.authorize(p, "bridge:submit", "bridge:read")
             self.maintain()
             r = self.get("request", a["request_id"], p.owner)
             rows = sorted([x for x in self.all("response", p.owner)

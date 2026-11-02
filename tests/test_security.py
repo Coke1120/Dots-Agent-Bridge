@@ -148,3 +148,32 @@ def test_network_exception_is_retried(env):
     env["store"].deliver_once()
     e = env["store"].all("outbox")[0]
     assert e["status"] == "pending" and e["attempts"] == 1
+
+
+def test_insufficient_scope_returns_http_challenge_and_keeps_role_boundary(env):
+    response = rpc(env, 'tools/call', {'name': 'record_response', 'arguments': {}}, 'alice-hermes')
+    assert response.status_code == 403
+    assert 'error="insufficient_scope"' in response.headers['www-authenticate']
+    assert 'scope="bridge:respond"' in response.headers['www-authenticate']
+    assert env['store'].all('response') == []
+
+
+def test_wait_discovery_requires_both_scopes(env):
+    from bridge.protocol import Protocol
+    from bridge.auth import Principal
+    principal = env['people']['alice-hermes']
+    limited = Principal(principal.subject, principal.client, principal.owner, principal.role,
+                        frozenset({'bridge:submit'}))
+    tools = Protocol(env['store']).dispatch(limited, 'tools/list', {})['tools']
+    assert 'wait_response' not in {tool['name'] for tool in tools}
+
+
+@pytest.mark.parametrize('body', [b'[]', b'null', b'not-json', b'\xff',
+                                  json.dumps({'challenge': 'invalid-\u00e9'}).encode()])
+def test_malformed_challenge_is_classified_without_internal_error(body):
+    callback = Callback(['receiver.example'])
+    callback.post = Mock(return_value=(200, body))
+    from conftest import subscription
+    secret = subscription()['delivery']['secret']
+    with pytest.raises(CallbackError, match='challenge_failed'):
+        callback.verify('https://receiver.example/callback', secret, 'sub_synthetic', time.time())

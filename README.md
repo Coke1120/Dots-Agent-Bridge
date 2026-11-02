@@ -2,6 +2,9 @@
 
 **Direct client and dedicated profile verified end to end; long-term renewal/recovery validation remains pending.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
+The [independent project review](docs/project-review-2026-11-02.md) records six reproduced
+defects and fixes, the Python/SDK test matrix, security coverage and remaining live gates.
+
 Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
 
 ## Automatic operation

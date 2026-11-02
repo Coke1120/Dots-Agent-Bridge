@@ -2,6 +2,11 @@
 
 ## Transport and identity
 
+Invalid/expired authentication returns HTTP 401, including authentication failure during
+a bounded wait. Missing operation scopes return HTTP 403 with `insufficient_scope` and
+the required scopes; a post-authentication policy denial returns HTTP 403 without inviting scope
+expansion. Tool calls may omit `arguments` when the input schema accepts an empty object.
+
 One authenticated `/mcp` endpoint supports modern MCP `2026-07-28` (`server/discover` and per-request metadata), and legacy `2025-11-25` (`initialize`). Both serve `ping`, tools and the MCP Events extension. Modern requests validate required `_meta` fields and mirrored protocol/method/name headers before dispatch, including Base64-encoded names; malformed/mismatched headers return HTTP 400 / -32020, unsupported versions 400 / -32022, and unknown methods 404 / -32601. Metadata client identity never replaces verified OAuth claims. Modern results carry `resultType: complete` and server identity; discovery/list caching is private with zero TTL, and HTTP results use `Cache-Control: no-store` because grants are rechecked on every request.
 
 JSON responses only; GET/DELETE return 405. Sessions, SSE streams, prompts/resources, sampling and elicitation are not advertised. Legacy initialization/cancellation notifications are ACKed with 202. Modern HTTP notifications are rejected. Transport cancellation does not cancel queued mailbox work; use `cancel_request`. The discovery-only bootstrap still denies every MCP request and is not the authenticated runtime server.
