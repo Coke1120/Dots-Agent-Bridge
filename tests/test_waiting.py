@@ -1,0 +1,84 @@
+import asyncio
+import json
+
+import pytest
+
+from bridge.auth import Denied
+from bridge.protocol import Protocol
+from bridge.waiting import Waiter
+from conftest import call, submit, subscription
+
+
+def test_wait_wire_bounds_roles_and_no_false_completion(env):
+    r = submit(env)
+    snap = call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0})
+    assert snap['timed_out'] and not snap['ready'] and snap['state'] == 'queued'
+    assert snap['active_subscriptions'] == 0
+    assert 'error' in call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 31})
+    assert 'error' in call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0}, 'alice-dot')
+    assert 'error' in call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0}, 'bob-hermes')
+    env['store'].subscribe(env['people']['alice-dot'], subscription())
+    assert call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0})['active_subscriptions'] == 1
+    assert not env['store'].all('response')
+
+
+@pytest.mark.parametrize('outcome', ['reply', 'cancel', 'expiry', 'revoke', 'disconnect', 'timeout', 'token_expired'])
+def test_wait_releases_lock_rechecks_auth_and_bounds(env, outcome):
+    r = submit(env)
+    p = env['people']['alice-hermes']
+    ticks = [0]
+    class Request:
+        headers = {'authorization': 'Bearer synthetic'}
+        async def is_disconnected(self):
+            return outcome == 'disconnect'
+    def auth(header):
+        if outcome == 'token_expired' and ticks[0]:
+            raise Denied()
+        return env['policy'].recheck(p)
+    async def sleep(seconds):
+        ticks[0] += seconds
+        if outcome == 'reply':
+            env['store'].respond(env['people']['alice-dot'], {'request_id': r['id'], 'content': 'synthetic-dot',
+                'idempotency_key': 'reply', 'expected_revision': 0, 'state': 'completed'})
+        elif outcome == 'cancel':
+            env['store'].cancel(p, {'request_id': r['id']})
+        elif outcome == 'expiry':
+            env['now'][0] += 86401
+        elif outcome == 'revoke':
+            for grant in env['grants']:
+                grant['enabled'] = False
+            env['policy_path'].write_text(json.dumps({'grants': env['grants']}))
+    waiter = Waiter(clock=lambda: ticks[0], sleep=sleep)
+    async def run():
+        return await waiter.run(Request(), auth, p, Protocol(env['store']), {'name': 'wait_response',
+            'arguments': {'request_id': r['id'], 'timeout_seconds': 2}})
+    if outcome in ('revoke', 'token_expired'):
+        with pytest.raises(Denied):
+            asyncio.run(run())
+    elif outcome == 'disconnect':
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(run())
+    else:
+        result = json.loads(asyncio.run(run())['content'][0]['text'])
+        assert result['timed_out'] == (outcome == 'timeout')
+        assert result['state'] == {'reply': 'completed', 'cancel': 'cancelled', 'expiry': 'expired', 'timeout': 'queued'}[outcome]
+    assert waiter.active == 0
+    assert ticks[0] <= 2
+
+
+def test_wait_capacity_does_not_create_work(env):
+    waiter = Waiter(limit=0)
+    result = asyncio.run(waiter.run(None, None, None, None, {}))
+    assert result['isError'] and 'capacity' in result['content'][0]['text']
+    assert env['store'].all('request') == []
+
+
+def test_wait_snapshot_does_not_count_remapped_subscription(env):
+    r = submit(env)
+    env['store'].subscribe(env['people']['alice-dot'], subscription())
+    for grant in env['grants']:
+        if grant['subject'] == 'alice-subject' and grant['client_id'] == 'dot':
+            grant['owner'] = 'bob'
+    env['policy_path'].write_text(json.dumps({'grants': env['grants']}))
+    snap = call(env, 'wait_response', {'request_id': r['id'], 'timeout_seconds': 0})
+    assert snap['active_subscriptions'] == 0
