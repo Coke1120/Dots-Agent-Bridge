@@ -83,3 +83,14 @@ from other `invalid_url` failures; the RPC error and fail-closed allowlist are u
 The hostname is untrusted diagnostic input, not permission to allow it: correlate the
 attempt with the authorized platform subscription flow and independently verify the host
 before any allowlist change. Malformed/control-character hosts use `unavailable`.
+
+## Deterministic direct client
+
+`bridge/direct.py` follows the locally verified Hermes MCP transport call path without
+starting chat, an agent or provider selection. SDK result normalization uses JSON aliases
+and handles both error spellings. Fourteen direct-client cases cover actual installed SDK
+result models, offline transport mocks, profile-before-import order, blocked inference
+imports, private retry receipts, input-bound idempotency, status-only reads, bounded waits
+and session cleanup on failure. These tests do not claim a live run of the newly packaged
+file or certify the transitive imports of future Hermes releases. The dedicated-profile
+smoke test remains local work; the current local token cache lacks a refresh token.

@@ -6,7 +6,7 @@ Hermes submits a message through authenticated MCP → SQLite stores the request
 
 ## Automatic operation
 
-Start with the [automatic-operation guide](docs/automatic-operation.md): native Hermes `/talk-to-dot` skill, bounded `wait_response`, official event automation setup, local HTTPS, disabled LaunchAgent templates, status, key rotation and recovery. A local Mac mini test completed the actual `request.created` wakeup and exact response retrieval in 24.251 seconds using an isolated Hermes transport. This is one observed run, not a latency guarantee.
+Start with the [automatic-operation guide](docs/automatic-operation.md): deterministic direct MCP client, optional Hermes `/talk-to-dot` skill, bounded `wait_response`, official event automation setup, local HTTPS, disabled LaunchAgent templates, status, key rotation and recovery. A local Mac mini test completed the actual `request.created` wakeup and exact response retrieval in 24.251 seconds using an isolated Hermes transport. This is one observed run, not a latency guarantee.
 
 ## Mac local installation
 

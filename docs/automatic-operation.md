@@ -315,12 +315,43 @@ The `/talk-to-dot` slash command is a **skill prompt** executed by the Hermes ag
 standalone deterministic shell command. Selecting tools and interpreting results through
 that agent may consume Hermes model tokens in addition to the dot's usage.
 
-Current command availability matters: `hermes-dots-bridge` manages the local service and
-configuration; it does **not** expose `send`, `wait` or `read` subcommands. The reported live
-run used an isolated local transport, whose reusable invocation and corrected SDK snippet
-have not yet been supplied to this repository. Do not invent a `hermes mcp call` or bridge
-send command, or copy private token caches to imitate that run. Publishing a supported
-direct-use command remains pending that transport handoff and review.
+The repository now includes [bridge/direct.py](../bridge/direct.py), a standalone
+stdlib-only `send` / `status` / `wait` client. The service CLI remains unchanged. Run this
+file with the **installed Hermes Python environment**, where Hermes's MCP modules are
+available; do not install bridge dependencies into it. The client sets `HERMES_HOME`
+before importing configuration, connects only the named HTTPS OAuth MCP server, and
+uses its session directly. It does not initialize an agent or select a model provider.
+A fail-closed import guard rejects known inference entry points/SDKs; Hermes MCP utility
+modules under `agent` are infrastructure and are permitted. This is not an OS sandbox.
+
+After separately setting up the dedicated profile and its OAuth login, use these commands
+with local paths substituted. The receipt directory must already exist with mode 700:
+
+```sh
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile send "Your message" --receipt /PRIVATE/receipts/message-001.json
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile status REQUEST_ID
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile wait REQUEST_ID
+```
+
+Use `send - --receipt ...` to read message text from stdin instead of command history.
+Use `--server NAME` before the subcommand if the configured MCP name differs. The client
+prints and saves a private idempotency receipt **before** submission; it stores an input
+fingerprint and retry key, not message text or tokens. If submission is uncertain, repeat
+the identical input with the same receipt; the bridge deduplicates it. Never use a new
+receipt for an uncertain retry. Once a request ID is printed, use status/wait with that ID.
+Keep receipts private and do not reuse them for a new task or after server retention has
+removed the original idempotency record. Reads print requested message/response data to
+your terminal; do not redirect them into shared logs.
+
+Send/wait stop after at most six 25-second wait requests by default (`--wait-calls 1..6`);
+network/connection overhead has separate timeouts. Pending, failed, expired or needs_input
+states are not successful completion. The client never reauthorizes silently or submits a
+new request to recover a decoding error. It closes the session and stops an idle MCP loop.
+Hermes private APIs are version-sensitive: this implementation follows the successful local
+transport handoff and offline fixtures, but the packaged file and dedicated profile still
+need a local smoke test. The previously verified default-profile wrapper completed two
+real automatic runs (24.251 and 40.286 seconds), with no Hermes LLM; these timings are not
+performance guarantees. Do not assume every future Hermes version supports the same APIs.
 
 For developers, the existing deterministic client flow is executable **offline**:
 
@@ -333,8 +364,8 @@ callback; it calls no model and is not a command for sending to the real dot. A 
 client must reuse a supported authenticated OAuth transport with normal TLS verification,
 client-owned token refresh, bounded waits and persisted IDs on uncertain outcomes. It must
 not embed access tokens in command-line arguments or resubmit merely because decoding
-failed. Until the local transport is reviewed and packaged, the documented end-user route
-remains the Hermes skill, with the model-usage distinction above.
+failed. The direct client is independent of the optional Hermes skill; choosing the skill still
+invokes the agent workflow described above.
 
 ### Dedicated bridge profile
 
@@ -355,20 +386,18 @@ the sticky default. Do not add a model provider for transport-only use. Profiles
 have access to shared/root provider logins or inherited process environment; merely omitting
 `model`/`provider` or leaving a local `.env` empty does not establish no-inference behavior.
 
-For the requested deterministic mode, the eventual reviewed wrapper must select this
-profile explicitly, load only bridge MCP/OAuth configuration and invoke MCP operations
-directly. It must never start `hermes chat`, a gateway agent, skill execution, provider
+For the requested deterministic mode, the direct client selects this
+profile explicitly via `--hermes-home`, loads bridge MCP/OAuth configuration and invokes
+MCP operations directly. Do not replace its invocation with `hermes chat`, a gateway agent, skill execution, provider
 selection, fallback routing or model initialization. The dedicated profile by itself cannot
 guarantee that property; the entry point and its call path must establish it.
 
-Before publishing the local wrapper, verify its exact invocation and sanitized source,
-SDK result decoding, bounded waits, saved request IDs and OAuth error handling. Tests must
-fail if agent/provider initialization is attempted and must show a synthetic direct
-send/wait/read succeeds without model credentials or model calls. Keep bridge dependencies
-isolated and do not install them into Hermes. This review is pending the local worker's
-verified wrapper; no no-provider direct CLI is claimed as implemented yet. The second live
-direct request's dot reply has been reported, but its final Hermes receipt is still pending
-confirmation, so only the first complete round trip is counted above.
+Offline tests cover SDK result aliases/errors, receipt reuse and changed-input rejection,
+profile selection before Hermes imports, blocked inference entry points, bounded waits and
+cleanup. No provider credentials or model calls are used. These mocks do not certify all
+transitive imports of an arbitrary installed Hermes revision. Verify the packaged command
+in the dedicated profile on the target machine; if the guard rejects an upstream import,
+review that path instead of disabling the guard or falling back to a chat command.
 
 ## 8. Renewal and client compatibility checklist
 
@@ -395,13 +424,13 @@ and reboot the host within request/subscription expiry. Keep the existing IDs an
 stored state before retries. These checks are pending live; offline expiry, retry and restart
 tests do not substitute for them.
 
-The local integration reported correcting an SDK result-field mismatch while continuing
-the same request. Its exact failing field and corrected transport snippet have not yet been
-provided to Cloud, so no speculative server or skill fix is included. The repository's
-`tests/sdk_compat.py` already handles SDK 1 camelCase versus SDK 2 snake_case Python model
-fields (`isError`/`is_error`) and transport tuple differences. Its synthetic acceptance test
-parses JSON from the tool's text content; Python model attributes are distinct from the
-wire field names. The skill consumes normal Hermes tool results and has no Python SDK
-field access. Before copying a custom transport script, verify its installed SDK/version
-and sanitized failing attribute against that helper. Do not resubmit a request because a
-client failed to decode a successful response; retrieve the existing request first.
+The confirmed local bug was Python attribute access `result.isError` against SDK 2's
+`is_error`, not a server protocol bug. The direct client normalizes via
+`model_dump(mode="json", by_alias=True)`, checks both error spellings and parses JSON text
+content. The skill itself has no Python SDK attribute access. Both aliases and error cases
+are regression-tested; no server wire format was changed.
+
+The current local Hermes credential cache was reported to have **no refresh token**.
+Until a supported refresh grant is obtained and tested, expect explicit reauthentication
+at access-token expiry. Subscription renewal is still unverified: inspect the actual
+`refreshBefore` in the private runtime rather than relying on a date embedded in this guide.
