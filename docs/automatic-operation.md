@@ -9,9 +9,12 @@ recorded its answer → Hermes retrieved the exact response at revision 1. There
 manual ChatGPT message or manually invoked reply in this run. The stored response, not
 the webhook ACK alone, establishes completion. This is a measured single run, not an SLA.
 
-This supersedes the earlier manual-only evidence. Default interactive Hermes integration
-is still being finished: the isolated transport result does not establish that `/talk-to-dot`
-works in every interactive profile. OAuth token refresh, subscription renewal and recovery
+A later local run verified repository revision `819abe7` directly in the dedicated
+`dot-bridge` profile: **22.246 seconds**, one event HTTP 200 and a genuine completed
+revision 1 response. No Hermes model initialized, the import guard was unchanged and
+the retry receipt was retained. The daily shell `talk-to-dot` wrapper now invokes this
+repository client; no tested-path code fixes were needed. This is distinct from the
+optional `/talk-to-dot` agent skill and does not validate that skill in every profile. OAuth token refresh, subscription renewal and recovery
 after a Mac reboot have **not** been verified. Do not equate one event-triggered answer
 with unattended reliability. Cloud did not perform these live account operations.
 
@@ -300,7 +303,8 @@ Then run this synthetic test with no manual dot response:
 
 The first live run demonstrated event creation/delivery and intended-dot execution. For
 ongoing readiness, still observe platform subscription renewal, client token refresh and
-reboot recovery, and validate the default interactive Hermes profile. Repository code
+reboot recovery. The dedicated direct-client profile is verified; the optional interactive
+agent skill is a separate path. Repository code
 cannot force these platform actions.
 
 ## 7. Programmatic use and model usage
@@ -328,9 +332,9 @@ After separately setting up the dedicated profile and its OAuth login, use these
 with local paths substituted. The receipt directory must already exist with mode 700:
 
 ```sh
-/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile send "Your message" --receipt /PRIVATE/receipts/message-001.json
-/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile status REQUEST_ID
-/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/hermes-profile wait REQUEST_ID
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/dot-bridge send "Your message" --receipt /PRIVATE/receipts/message-001.json
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/dot-bridge status REQUEST_ID
+/path/to/hermes-python /path/to/hermes-dots-bridge/bridge/direct.py --hermes-home /PRIVATE/dot-bridge wait REQUEST_ID
 ```
 
 Use `send - --receipt ...` to read message text from stdin instead of command history.
@@ -348,8 +352,8 @@ network/connection overhead has separate timeouts. Pending, failed, expired or n
 states are not successful completion. The client never reauthorizes silently or submits a
 new request to recover a decoding error. It closes the session and stops an idle MCP loop.
 Hermes private APIs are version-sensitive: this implementation follows the successful local
-transport handoff and offline fixtures, but the packaged file and dedicated profile still
-need a local smoke test. The previously verified default-profile wrapper completed two
+transport handoff and offline fixtures. Revision `819abe7` has now passed a real local
+automatic round trip in the dedicated `dot-bridge` profile. The previously verified default-profile wrapper completed two
 real automatic runs (24.251 and 40.286 seconds), with no Hermes LLM; these timings are not
 performance guarantees. Do not assume every future Hermes version supports the same APIs.
 
@@ -369,14 +373,14 @@ invokes the agent workflow described above.
 
 ### Dedicated bridge profile
 
-Use a separate `dots-bridge` profile to keep bridge MCP configuration and client state
+Use a separate `dot-bridge` profile to keep bridge MCP configuration and client state
 apart from normal Hermes conversations. This is configuration separation, **not** an
 inference firewall. Official [Hermes profile documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/profiles.md)
 supports blank profiles and explicit selection:
 
 ```sh
-hermes profile create dots-bridge
-hermes -p dots-bridge mcp login hermes-dots-bridge
+hermes profile create dot-bridge
+hermes -p dot-bridge mcp login hermes-dots-bridge
 ```
 
 These are operator setup commands, not send commands. Check the installed version's help
@@ -395,8 +399,8 @@ guarantee that property; the entry point and its call path must establish it.
 Offline tests cover SDK result aliases/errors, receipt reuse and changed-input rejection,
 profile selection before Hermes imports, blocked inference entry points, bounded waits and
 cleanup. No provider credentials or model calls are used. These mocks do not certify all
-transitive imports of an arbitrary installed Hermes revision. Verify the packaged command
-in the dedicated profile on the target machine; if the guard rejects an upstream import,
+transitive imports of an arbitrary installed Hermes revision. The dedicated profile passed
+locally at revision `819abe7`; repeat this check after changing Hermes or machines; if the guard rejects an upstream import,
 review that path instead of disabling the guard or falling back to a chat command.
 
 ## 8. Renewal and client compatibility checklist
@@ -430,7 +434,15 @@ The confirmed local bug was Python attribute access `result.isError` against SDK
 content. The skill itself has no Python SDK attribute access. Both aliases and error cases
 are regression-tested; no server wire format was changed.
 
-The current local Hermes credential cache was reported to have **no refresh token**.
-Until a supported refresh grant is obtained and tested, expect explicit reauthentication
-at access-token expiry. Subscription renewal is still unverified: inspect the actual
+The local inspection found the refresh-token grant type already enabled on **both Auth0
+clients**, but **Allow Offline Access was off on the HTTPS API**, refresh-token rotation
+was off, and the Hermes credential cache contained **no refresh token**. These are separate
+settings; enabling a client grant alone did not establish usable renewal. This inspection
+changed no grants or settings. Do not confuse the API's Allow Offline Access setting with
+the native-to-web SSO **Allow Refresh Token Requests** toggle.
+
+Until the appropriate API/client authorization flow yields a refresh token and renewal is
+actually tested, expect explicit reauthentication at access-token expiry. Rotation policy
+also needs deliberate review; this guide does not silently enable it or promise that
+changing a setting retroactively updates existing cached credentials. Subscription renewal is still unverified: inspect the actual
 `refreshBefore` in the private runtime rather than relying on a date embedded in this guide.

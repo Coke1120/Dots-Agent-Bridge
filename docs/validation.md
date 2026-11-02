@@ -1,6 +1,6 @@
 # Validation evidence
 
-Status: **one real automatic round trip verified by local integration; interactive setup,
+Status: **repository direct client and dedicated profile verified by local integration;
 renewal and reboot recovery remain pending**.
 
 ## Latest live evidence (2026-11-02)
@@ -8,10 +8,17 @@ renewal and reboot recovery remain pending**.
 The authorized Mac mini integration reported an isolated Hermes transport submission,
 signed webhook HTTP 200, genuine event-triggered intended-dot reply and exact Hermes
 response retrieval at revision 1 in 24.251 seconds, with no manual chat/reply. This proves
-one automatic round trip; it does not prove default interactive skill integration, OAuth
+one automatic round trip; it does not prove optional interactive skill integration, OAuth
 refresh, subscription renewal or reboot recovery. Those remain unverified. No live IDs,
 credentials or private callback URLs are included here. See the
 [operational guide](automatic-operation.md) for the working architecture and remaining checks.
+
+A subsequent local test used the unmodified repository `bridge/direct.py` at `819abe7`
+with explicit `dot-bridge` profile selection. It completed in **22.246 seconds**, with one
+webhook HTTP 200 and a genuine completed revision 1 response. No Hermes model initialized;
+the inference import guard remained enabled and the retry receipt was retained. The daily
+shell wrapper now uses that repository file. No tested-path fixes were required. This
+confirms the direct-client path, not the optional agent skill or long-term renewal.
 
 The sections below record earlier milestones and offline evidence. Their historical
 connection gates are superseded only by the specific live observations above.
@@ -91,6 +98,8 @@ starting chat, an agent or provider selection. SDK result normalization uses JSO
 and handles both error spellings. Fourteen direct-client cases cover actual installed SDK
 result models, offline transport mocks, profile-before-import order, blocked inference
 imports, private retry receipts, input-bound idempotency, status-only reads, bounded waits
-and session cleanup on failure. These tests do not claim a live run of the newly packaged
-file or certify the transitive imports of future Hermes releases. The dedicated-profile
-smoke test remains local work; the current local token cache lacks a refresh token.
+and session cleanup on failure. The later local run described above separately verifies
+the packaged file in the dedicated profile. Neither test set certifies transitive imports
+of future Hermes releases. The current local cache lacks a refresh token; both clients
+already allow the refresh grant, but the HTTPS API's Allow Offline Access and refresh-token
+rotation were off. No settings changed during inspection; renewal remains unverified.

@@ -1,6 +1,6 @@
 # hermes-dots-bridge
 
-**One real automatic round trip verified; interactive integration and long-term renewal/recovery validation remain pending.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
+**Direct client and dedicated profile verified end to end; long-term renewal/recovery validation remains pending.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
 Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
 
@@ -57,7 +57,7 @@ Identity comes from a verified token and local operator policy, never an `owner_
 
 See [connection and external OAuth setup](docs/connection.md), [protocol and operational contract](docs/contract.md) and [verification evidence](docs/validation.md). Templates are in [examples](examples/).
 
-Local integration has reported a real automatic reply through authenticated Hermes transport, a signed webhook and the intended dot. Default interactive Hermes integration is still being finished; token renewal, subscription renewal and reboot recovery remain unverified. See the [approval bundle and acceptance test](docs/automatic-operation.md#6-automatic-acceptance-test-and-approval-bundle). No service is installed automatically by this repository.
+Local integration has reported a real automatic reply through authenticated Hermes transport, a signed webhook and the intended dot. The repository direct client also completed a real automatic round trip in the dedicated `dot-bridge` profile without Hermes model initialization. Token renewal, subscription renewal and reboot recovery remain unverified. See the [approval bundle and acceptance test](docs/automatic-operation.md#6-automatic-acceptance-test-and-approval-bundle). No service is installed automatically by this repository.
 
 Run a single process with a persistent writable volume only after completing those settings:
 
