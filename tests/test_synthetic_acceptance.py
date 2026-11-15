@@ -1,4 +1,4 @@
-"""Both client roles and resource audiences through the real JWT/MCP path.
+"""Hermes and generic submitter roles through the real JWT/MCP path.
 
 This is an offline acceptance rehearsal, not a live tunnel or dot test.
 """
@@ -8,6 +8,7 @@ import time
 from types import SimpleNamespace
 
 import jwt
+import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from mcp import ClientSession
 from sdk_compat import field, httpx, sdk_transport
@@ -17,7 +18,8 @@ from bridge.auth import JWTAuth, SCOPES
 from conftest import subscription
 
 
-def test_dual_audience_synthetic_acceptance(env):
+@pytest.mark.parametrize('submitter', ('hermes', 'agent'))
+def test_dual_audience_synthetic_acceptance(env, submitter):
     local = 'http://127.0.0.1:8765/mcp'
     tunnel = 'https://tunnel.example/verified-resource'
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -38,20 +40,20 @@ def test_dual_audience_synthetic_acceptance(env):
 
     async def run():
         # Simulates Authorization forwarding only. It does not implement or emulate Tunnel control plane.
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), headers={'Authorization': 'Bearer ' + token('hermes', local)}) as hhttp, \
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), headers={'Authorization': 'Bearer ' + token(submitter, local)}) as sender_http, \
                    httpx.AsyncClient(transport=httpx.ASGITransport(app=app), headers={'Authorization': 'Bearer ' + token('dot', tunnel)}) as dhttp:
-            async with sdk_transport(local, http_client=hhttp) as (hr, hw), \
+            async with sdk_transport(local, http_client=sender_http) as (hr, hw), \
                        sdk_transport(local, http_client=dhttp) as (dr, dw):
-                async with ClientSession(hr, hw) as hermes, ClientSession(dr, dw) as dot:
-                    await hermes.initialize()
+                async with ClientSession(hr, hw) as sender, ClientSession(dr, dw) as dot:
+                    await sender.initialize()
                     await dot.initialize()
                     subscribed = await dhttp.post(local, json={'jsonrpc': '2.0', 'id': 1, 'method': 'events/subscribe', 'params': subscription()})
                     assert 'result' in subscribed.json()
                     args = {'content': 'Synthetic test only: reply bridge-ok. Do not use other tools.', 'idempotency_key': 'synthetic-acceptance-001'}
-                    request = decoded(await hermes.call_tool('submit_message', args))
-                    assert decoded(await hermes.call_tool('submit_message', args))['id'] == request['id']
+                    request = decoded(await sender.call_tool('submit_message', args))
+                    assert decoded(await sender.call_tool('submit_message', args))['id'] == request['id']
                     assert env['store'].deliver_once()
-                    pending = decoded(await hermes.call_tool('get_request', {'request_id': request['id']}))
+                    pending = decoded(await sender.call_tool('get_request', {'request_id': request['id']}))
                     assert pending['request']['state'] == 'delivered' and pending['latest_responses'] == []
                     waiting = asyncio.create_task(hermes.call_tool('wait_response', {'request_id': request['id'], 'timeout_seconds': 5}))
                     context = decoded(await dot.call_tool('get_request', {'request_id': request['id']}))
@@ -62,13 +64,13 @@ def test_dual_audience_synthetic_acceptance(env):
                     waited = decoded(await waiting)
                     assert waited['ready'] and not waited['timed_out']
                     assert waited['responses'][0]['content'] == 'bridge-ok'
-                    received = decoded(await hermes.call_tool('list_responses', {'request_id': request['id']}))
+                    received = decoded(await sender.call_tool('list_responses', {'request_id': request['id']}))
                     assert len(received['responses']) == 1 and received['responses'][0]['content'] == 'bridge-ok'
-                    follow = decoded(await hermes.call_tool('submit_message', {
+                    follow = decoded(await sender.call_tool('submit_message', {
                         'content': 'Synthetic follow-up', 'idempotency_key': 'synthetic-acceptance-002',
                         'conversation_id': request['conversation_id']}))
                     assert follow['sequence'] == 2
-                    cancelled = decoded(await hermes.call_tool('cancel_request', {'request_id': follow['id']}))
+                    cancelled = decoded(await sender.call_tool('cancel_request', {'request_id': follow['id']}))
                     assert cancelled['state'] == 'cancelled'
                     await dhttp.post(local, json={'jsonrpc': '2.0', 'id': 2, 'method': 'events/unsubscribe',
                         'params': {'name': 'request.created', 'arguments': {}, 'delivery': {'mode': 'webhook', 'url': subscription()['delivery']['url']}}})
