@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 import jwt
 
 SCOPES = {"hermes": {"bridge:submit", "bridge:read"},
+          "agent": {"bridge:submit", "bridge:read"},
           "dot": {"bridge:read", "bridge:respond", "bridge:subscribe"}}
 
 

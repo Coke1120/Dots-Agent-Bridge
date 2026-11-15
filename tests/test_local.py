@@ -42,6 +42,36 @@ def test_init_no_overwrite_or_secret_generation(tmp_path):
     assert main(['check', '--config', str(path)]) == 2
 
 
+def test_agent_only_init_and_legacy_compatible_service(tmp_path, env):
+    path = init_directory(tmp_path / "openbot-only", submitter="agent")
+    policy_path = path.parent / "policy.json"
+    policy = json.loads(policy_path.read_text())
+    assert {g["role"] for g in policy["grants"]} == {"agent", "dot"}
+    assert all(not g["enabled"] and not g["queue_authorized"] for g in policy["grants"])
+    for grant in policy["grants"]:
+        grant.update(subject="alice-subject", client_id=grant["role"], enabled=True,
+                     queue_authorized=True, owner="alice")
+    policy_path.write_text(json.dumps(policy))
+    config = json.loads(path.read_text())
+    config.update(issuer="https://issuer.example", jwks_url="https://issuer.example/jwks",
+                  client_claim="client_id", callback_hosts=["receiver.example"])
+    path.write_text(json.dumps(config))
+    key = path.parent / "signing-secrets.key"
+    key.write_bytes(Fernet.generate_key())
+    key.chmod(0o600)
+    assert load_config(path, ready=True)["resource"] == "http://127.0.0.1:8765/mcp"
+    assert main(["init", "--directory", str(tmp_path / "openbot-flag"), "--submitter", "agent"]) == 0
+
+
+def test_agent_only_rejects_missing_dot_or_submitter(tmp_path):
+    path = init_directory(tmp_path / "agent", submitter="agent")
+    policy = json.loads((path.parent / "policy.json").read_text())
+    # This check remains fail-closed until real grants, secret and issuer exist.
+    assert all(not g["enabled"] for g in policy["grants"])
+    with pytest.raises(SetupError):
+        init_directory(tmp_path / "invalid", submitter="invalid")
+
+
 def test_local_check_and_templates_are_passive(local_config, capsys):
     config = load_config(local_config, ready=True)
     assert main(['check', '--config', str(local_config)]) == 0

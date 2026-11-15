@@ -23,7 +23,7 @@ def modern(env, method='server/discover', params=None, who='alice-dot', headers=
 
 
 def test_discovery_role_scoped_without_initialize(env):
-    for role in ('hermes', 'dot'):
+    for role in ('hermes', 'dot', 'agent'):
         r = modern(env, who='alice-' + role)
         assert r.status_code == 200
         assert r.headers['cache-control'] == 'no-store'
@@ -76,6 +76,7 @@ def test_modern_roles_owner_and_events(env):
     assert tool('get_request', {'request_id': request['id']}, 'bob-dot')['result']['isError']
     assert 'error' in tool('submit_message', {'content': 'x', 'idempotency_key': 'x'}, 'alice-dot')
     assert 'error' in modern(env, 'events/list', who='alice-hermes').json()
+    assert 'error' in modern(env, 'events/list', who='alice-agent').json()
     assert modern(env, 'events/list').json()['result']['events'][0]['name'] == 'request.created'
     assert modern(env, 'events/subscribe', subscription()).json()['result']['resultType'] == 'complete'
     assert tool('get_request', {'request_id': request['id']}, 'alice-dot')['result']['resultType'] == 'complete'

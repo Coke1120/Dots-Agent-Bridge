@@ -1,11 +1,25 @@
-# hermes-dots-bridge
+# Dots Agent Bridge
 
-**Direct client and dedicated profile verified end to end; long-term renewal/recovery validation remains pending.** A private, asynchronous mailbox between Hermes Agent on a Mac and an existing ChatGPT dot. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
+> This repository is still named `hermes-dots-bridge` and retains the existing Python package, MCP server identity, local service names and CLI for backwards compatibility. A repository rename is a separate, operator-reviewed rollout.
+
+
+**Hermes has verified live round trips; OpenBot and generic MCP agents are supported by the new submitter role but have not yet been live-tested.** This is a private, asynchronous mailbox between an explicitly authorized MCP agent client (Hermes, OpenBot, etc.) and an existing ChatGPT dot. Long-term renewal/recovery validation remains pending. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
 
 The [independent project review](docs/project-review-2026-11-02.md) records six reproduced
 defects and fixes, the Python/SDK test matrix, security coverage and remaining live gates.
 
-Hermes submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → Hermes retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
+An authorized agent submits a message through authenticated MCP → SQLite stores the request and delivery outbox → an MCP Events webhook wakes the subscribed dot → dot reads the request and records its answer → the submitting agent retrieves the stored answer. Webhook receipt is **not** task completion. This does not control native ChatGPT threads, models or settings and does not promise streaming.
+
+## OpenBot and generic MCP agents
+
+The new **`agent`** OAuth role can submit, read, wait for and cancel mailbox requests, but **cannot** record dot responses or subscribe to dot-only events. Hermes continues to work unchanged via its legacy `hermes` role. Both submitter roles have the same narrow scopes; neither gets tool or account management privileges.
+
+- [OpenBot connection / OAuth / local and Docker networking guide](docs/openbot.md)
+- [OpenBot-only bootstrap policy](examples/agent-policy.example.json) or `hermes-dots-bridge init --directory /PRIVATE/bridge --submitter agent`.
+- [Phase 2: optional dot-initiated OpenBot task dispatch](docs/agent-dispatch-roadmap.md) (design only, **not implemented**).
+- [Naming/metadata migration guidance](docs/rename-plan.md) (no live resource, OAuth, API or GitHub repository rename in this PR).
+
+An OpenBot **Hermes-provider** agent can also use the existing Hermes profile and `/talk-to-dot` skill, without granting OpenBot a separate OAuth client. For Codex, Claude, Gemini or other OpenBot providers use the native MCP connection and a dedicated `agent` grant.
 
 ## Automatic operation
 
@@ -46,15 +60,15 @@ The lock includes development/test dependencies. Tests use synthetic principals,
 
 ## Tool permissions
 
-| Tool | Hermes | dot | Scope |
-| --- | --- | --- | --- |
-| `submit_message`, `cancel_request` | Yes | No | `bridge:submit` |
-| `wait_response` | Yes | No | `bridge:submit` + `bridge:read` |
-| `get_request`, `list_requests`, `list_responses` | Yes | Yes | `bridge:read` |
-| `record_response` | No | Yes | `bridge:respond` |
-| `events/list`, `events/subscribe`, `events/unsubscribe` | No | Yes | `bridge:subscribe` |
+| Tool | Hermes (legacy) | Agent (e.g. OpenBot) | Dot | Scope |
+| --- | --- | --- | --- | --- |
+| `submit_message`, `cancel_request` | Yes | Yes | No | `bridge:submit` |
+| `wait_response` | Yes | Yes | No | `bridge:submit` + `bridge:read` |
+| `get_request`, `list_requests`, `list_responses` | Yes | Yes | Yes | `bridge:read` |
+| `record_response` | No | No | Yes | `bridge:respond` |
+| `events/list`, `events/subscribe`, `events/unsubscribe` | No | No | Yes | `bridge:subscribe` |
 
-Identity comes from a verified token and local operator policy, never an `owner_id` argument. Requested scopes cannot change the role. Both clients' explicitly authorized identities map to the same private owner. There are no remote grant, approve, delete or administrator tools.
+Identity comes from a verified token and local operator policy, never an `owner_id` argument. Requested scopes cannot change the role. All clients' explicitly authorized identities map to the same private owner. **Important:** the owner scope is shared by Hermes, OpenBot and any other enabled submitter; submitters for the same owner can read each other's queued messages. OpenBot's per-agent MCP access settings help restrict which agents receive the server but are not a per-agent bridge identity or authorization boundary. There are no remote grant, approve, delete or administrator tools.
 
 ## Before connecting real accounts
 
