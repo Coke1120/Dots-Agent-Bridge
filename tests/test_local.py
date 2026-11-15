@@ -206,3 +206,26 @@ def test_tunnel_readiness_requires_pinned_audience(local_config):
     config['tunnel_resource'] = 'https://tunnel.example/exact-resource'
     local_config.write_text(json.dumps(config))
     assert main(['check', '--require-tunnel', '--config', str(local_config)]) == 0
+
+
+def test_multiple_agent_grants_are_owner_scoped_and_validated(local_config):
+    policy_path = local_config.parent / "policy.json"
+    original = json.loads(policy_path.read_text())
+    agent = {"subject": "alice-subject", "client_id": "openbot-client",
+             "owner": "alice", "role": "agent", "enabled": True, "queue_authorized": True}
+
+    def check(extra, accepted):
+        policy_path.write_text(json.dumps({"grants": original["grants"] + extra}))
+        if accepted:
+            assert load_config(local_config, ready=True)["client_claim"] == "client_id"
+        else:
+            with pytest.raises(SetupError):
+                load_config(local_config, ready=True)
+
+    check([agent], True)  # Backwards-compatible Hermes + dot + OpenBot.
+    check([agent, {**agent, "client_id": "second-agent"}], True)
+    check([agent, agent], False)  # Same verified subject and client cannot have two grants.
+    check([{**agent, "owner": "another-owner"}], False)
+    check([{**agent, "role": "unexpected"}], False)
+    check([{**agent, "queue_authorized": False}], False)
+    check([agent, {**agent, "role": "dot", "client_id": "second-dot"}], False)
