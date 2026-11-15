@@ -14,7 +14,7 @@ An authorized agent submits a message through authenticated MCP → SQLite store
 
 The new **`agent`** OAuth role can submit, read, wait for and cancel mailbox requests, but **cannot** record dot responses or subscribe to dot-only events. Hermes continues to work unchanged via its legacy `hermes` role. Both submitter roles have the same narrow scopes; neither gets tool or account management privileges.
 
-- [OpenBot connection / OAuth / local and Docker networking guide](docs/openbot.md)
+- [OpenBot connection / OAuth / local and Docker networking guide](docs/openbot.md), including reuse of the existing [`talk-to-dot` skill](skills/talk-to-dot/SKILL.md).
 - [OpenBot-only bootstrap policy](examples/agent-policy.example.json) or `hermes-dots-bridge init --directory /PRIVATE/bridge --submitter agent`.
 - [Phase 2: optional dot-initiated OpenBot task dispatch](docs/agent-dispatch-roadmap.md) (design only, **not implemented**).
 - [Naming/metadata migration guidance](docs/rename-plan.md) (no live resource, OAuth, API or GitHub repository rename in this PR).
