@@ -1,17 +1,21 @@
-# Repository name and metadata migration plan
+# Repository identity, description, and compatibility
 
-**Decision for the OpenBot-support PR: do not rename the GitHub repository, package, Python module, MCP server identity, launchd labels or OAuth resource.** Existing Mac mini profiles, documentation links, operator scripts, service launch definitions, OAuth audiences, GitHub actions, and the installed ChatGPT connector may already reference `hermes-dots-bridge`. GitHub redirects do not protect local imports, OAuth audiences or automation configuration.
+The GitHub repository has already been renamed to **[Coke1120/Dots-Agent-Bridge](https://github.com/Coke1120/Dots-Agent-Bridge)**. This is the canonical GitHub location. Existing GitHub redirects are convenient for old links, but they are not a migration strategy for local files, runtime identities, or OAuth settings.
 
-A future name such as **`dots-agent-bridge`** better communicates multi-client support, and the suggested GitHub description is:
+## Recommended GitHub About metadata
 
-> Private, OAuth-scoped MCP mailbox and event bridge between ChatGPT Dots and local AI agents (OpenBot, Hermes and other MCP clients).
+**Description**
 
-Suggested repository topics: `mcp`, `chatgpt-dots`, `openbot`, `hermes-agent`, `oauth2`, `agent-interop`, `webhooks`.
+> Secure, OAuth-scoped MCP bridge connecting ChatGPT Dots with OpenBot, Hermes, and other AI agents through asynchronous messaging and events.
 
-If the owner decides to rename later:
+**Topics:** `mcp`, `chatgpt-dots`, `openbot`, `hermes-agent`, `oauth2`, `agent-interop`, `webhooks`
 
-1. Audit clone URLs, pipeline references, self-hosted scripts, pinned paths, credential audiences and existing ChatGPT connectors; take backups and a rollback inventory.
-2. Rename GitHub repository (and description/topics) in a separate approved maintenance operation, keeping code/package command stable for one deprecation window.
-3. Update documentation, clone and remote URLs, release links, badges and pinned paths; verify GitHub redirects only for link navigation.
-4. Rename the Python distribution, console executable or local launchd label **only** in later, independently tested migration PRs with backward-compatible aliases.
-5. Never change the OAuth resource or ChatGPT event subscription merely to align a name. Audience changes require re-registration, explicit reauthorization, and live Hermes/OpenBot/Dots acceptance tests.
+**License:** [MIT](../LICENSE). The Python package also advertises the SPDX identifier `MIT` and includes the license file.
+
+## Backwards-compatible names
+
+The GitHub rename does **not** rename the Python distribution `hermes-dots-bridge`, CLI `hermes-dots-bridge`, Python import package `bridge`, MCP server identity, LaunchAgent labels, service paths, existing profile settings, or OAuth resource/audience. Keep these stable so that deployed Hermes and OpenBot profiles and the authorized ChatGPT Dot still work. Renaming the local package or CLI should only happen via a later compatibility release with aliases and a validated migration.
+
+Before any future runtime identity change, inventory existing Mac mini installations, configured OAuth client IDs, audience/resource identifiers, event subscriptions, tunnel ingress, scripts and pinned installation paths. Back up private state and perform an end-to-end synthetic round trip after a controlled rollout. GitHub repository redirects cannot fix mismatched OAuth audiences.
+
+The repository being public and MIT-licensed **does not make the operator's mailbox or credentials public**. Never commit real policy grants, OAuth tokens, keys, message databases or webhook secrets. Live network exposure requires HTTPS, restricted grants and the security checks already described in [connection.md](connection.md) and [openbot.md](openbot.md).
