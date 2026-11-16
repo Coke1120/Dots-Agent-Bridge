@@ -12,7 +12,7 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-from .auth import Denied, JWTAuth, Policy, validate_https, validate_local_resource
+from .auth import Denied, JWTAuth, Policy, SCOPES, validate_https, validate_local_resource
 from .callback import Callback
 
 LABEL = "com.hermes-dots-bridge.service"
@@ -34,7 +34,9 @@ def private_file(path):
     return path.read_text()
 
 
-def init_directory(directory):
+def init_directory(directory, submitter="hermes"):
+    if submitter not in ("hermes", "agent"):
+        raise SetupError("Submitter must be hermes or agent")
     directory = directory.expanduser().absolute()
     if directory.exists():
         raise SetupError("Destination already exists; choose a new directory (nothing overwritten)")
@@ -51,7 +53,7 @@ def init_directory(directory):
     }
     policy = {"grants": [{"subject": "REPLACE_WITH_VERIFIED_SUBJECT", "client_id": "REPLACE_WITH_" + role.upper() + "_CLIENT_ID",
                           "owner": "private-owner", "role": role, "enabled": False, "queue_authorized": False}
-                         for role in ("hermes", "dot")]}
+                         for role in (submitter, "dot")]}
     for name, value in (("config.json", config), ("policy.json", policy)):
         with (directory / name).open("x") as output:
             os.chmod(output.name, 0o600)
@@ -99,15 +101,24 @@ def load_config(path, ready=False):
         if "REPLACE_" in json.dumps(policy) or not grants:
             raise SetupError("Populate verified operator grants before starting")
         resolver = Policy(config["policy_file"])
-        for role in ("hermes", "dot"):
-            active = [g for g in grants if g.get("role") == role and g.get("enabled") is True and g.get("queue_authorized") is True]
-            if len(active) != 1:
-                raise SetupError("Local MVP needs exactly one explicitly authorized grant per role")
-            if not all(isinstance(active[0].get(k), str) and active[0][k] for k in ("subject", "client_id", "owner")):
+        active = [g for g in grants if g.get("enabled") is True and g.get("queue_authorized") is True]
+        if any((g.get("enabled") is True) != (g.get("queue_authorized") is True) for g in grants):
+            raise SetupError("Grants must be enabled and queue-authorized together")
+        if len([g for g in active if g.get("role") == "dot"]) != 1:
+            raise SetupError("Local bridge needs exactly one authorized dot grant")
+        if not any(g.get("role") in ("hermes", "agent") for g in active):
+            raise SetupError("Local bridge needs at least one authorized submitter")
+        for grant in active:
+            if grant.get("role") not in SCOPES:
+                raise SetupError("Unrecognized active bridge role")
+            if not all(isinstance(grant.get(k), str) and grant[k] for k in ("subject", "client_id", "owner")):
                 raise SetupError("Grant identities must be nonempty strings")
-            resolver.resolve(active[0]["subject"], active[0]["client_id"], [])
-        if len({g["owner"] for g in grants if g.get("enabled") is True}) != 1:
-            raise SetupError("Local Hermes and dot grants must map to one owner")
+            try:
+                resolver.resolve(grant["subject"], grant["client_id"], [])
+            except Denied:
+                raise SetupError("Ambiguous or unauthorized grant identity") from None
+        if len({g["owner"] for g in active}) != 1:
+            raise SetupError("All active bridge grants must map to one owner")
     return config
 
 
@@ -232,6 +243,8 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="Write disabled placeholder templates to a new directory only")
     init.add_argument("--directory", type=Path, required=True)
+    init.add_argument("--submitter", choices=("hermes", "agent"), default="hermes",
+                      help="Create disabled grants for Hermes or an MCP agent such as OpenBot")
     for name in ("check", "status", "serve", "serve-discovery", "print-hermes", "print-launchd"):
         command = sub.add_parser(name)
         command.add_argument("--config", type=Path, required=True)
@@ -250,7 +263,7 @@ def main(argv=None):
             return 0
         if args.command == "init":
             os.umask(0o077)
-            print(f"Placeholder templates created: {init_directory(args.directory)}")
+            print(f"Placeholder templates created: {init_directory(args.directory, args.submitter)}")
             print("No keys, grants, services or Hermes settings were installed.")
             return 0
         config = load_config(args.config, ready=args.command in ("check", "serve"))

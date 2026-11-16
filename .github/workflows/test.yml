@@ -24,3 +24,69 @@ jobs:
       - run: python -m pip check
       - run: python -m compileall -q bridge tests
       - run: python -m pytest -q
+
+  publish_release:
+    name: Publish versioned GitHub release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify version bump and release state
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(python -c 'import tomllib; from pathlib import Path; print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])')
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release version must be MAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          PREVIOUS=$(git show "HEAD^:pyproject.toml" 2>/dev/null | python -c 'import sys,tomllib; s=sys.stdin.read(); print(tomllib.loads(s)["project"]["version"] if s else "")')
+          if [[ "$PREVIOUS" == "$VERSION" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version unchanged ($VERSION); no release."
+            exit 0
+          fi
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists; no duplicate."
+            exit 0
+          fi
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "::error::Tag $TAG already exists without a release; refusing to retarget it."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "Publishing $TAG after the successful test matrix."
+      - name: Build wheel and source distribution
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - name: Publish GitHub release and assets
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          NOTES="docs/releases/$TAG.md"
+          if [[ -f "$NOTES" ]]; then
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Dots Agent Bridge $TAG" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Dots Agent Bridge $TAG" --generate-notes
+          fi

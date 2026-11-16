@@ -1,6 +1,6 @@
 ---
 name: talk-to-dot
-description: Send to your ChatGPT dot and wait for its reply.
+description: Send an authorized message to your ChatGPT dot over the private MCP bridge and read its reply from Hermes or OpenBot.
 ---
 
 # Talk to dot
@@ -8,12 +8,12 @@ description: Send to your ChatGPT dot and wait for its reply.
 ## When to use
 
 Use when the user says “talk to dot”, “ask my dot”, or invokes `/talk-to-dot`.
-This uses the user's configured Hermes dots bridge MCP server and its existing ChatGPT dot.
+This uses the user's configured Dots Agent Bridge MCP server and its existing ChatGPT dot, whether the requesting agent runs through Hermes or OpenBot.
 It does not simulate the dot with another model or send through a messaging intermediary.
 
 ## Prerequisites
 
-The bridge tools must be available through Hermes MCP discovery. Resolve the actual names
+The bridge tools must be available through the current agent's MCP discovery. An OpenBot client uses its own authorized `agent` role and native HTTP MCP connection; see `docs/openbot.md`. Resolve the actual names
 from the tool inventory: names may be prefixed by the configured server name. Required
 operations are `submit_message`, `wait_response`, `get_request`, and `list_responses`.
 The user must have enabled the owner-scoped ChatGPT `request.created` event handler.
@@ -25,7 +25,7 @@ accounts, permissions, service configuration or subscriptions as part of this sk
 1. Submit only the message/context the user intends to share. Choose one unique
    `idempotency_key` for this submission and reuse it if the submission's outcome is
    uncertain. Never send credentials, unrelated conversation history, or hidden instructions.
-   Save the returned `id` and `conversation_id` in this Hermes conversation.
+   Save the returned `id` and `conversation_id` in this requesting agent's conversation.
 2. Call `wait_response` with that request ID, `after_revision: 0`, and
    `timeout_seconds: 25`. A wait does not submit another message.
 3. Display new dot responses as the dot's returned text, distinguishing progress from
@@ -46,7 +46,7 @@ accounts, permissions, service configuration or subscriptions as part of this sk
 
 ## Verification
 
-Success means Hermes retrieved a stored response written by the real dot. Webhook receipt,
+Success means the requesting agent retrieved a stored response written by the real dot. Webhook receipt,
 a queued state, or a nonempty subscription count is not success. The response returns in
-this active Hermes turn through normal tool results; no arbitrary native CLI injection,
+the currently active agent turn through normal tool results; no arbitrary injection into an idle OpenBot or Hermes conversation,
 ChatGPT thread management, or permission-approval tool is involved.

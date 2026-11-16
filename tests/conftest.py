@@ -31,12 +31,12 @@ class FakeCallback(Callback):
 def env(tmp_path):
     grants = [{"subject": owner + "-subject", "client_id": role, "owner": owner,
                "role": role, "enabled": True, "queue_authorized": True}
-              for owner in ("alice", "bob") for role in ("hermes", "dot")]
+              for owner in ("alice", "bob") for role in ("hermes", "dot", "agent")]
     policy_path = tmp_path / "policy.json"
     policy_path.write_text(json.dumps({"grants": grants}))
     policy = Policy(str(policy_path))
     people = {f"{o}-{r}": policy.resolve(o + "-subject", r, SCOPES[r])
-              for o in ("alice", "bob") for r in ("hermes", "dot")}
+              for o in ("alice", "bob") for r in ("hermes", "dot", "agent")}
     now = [time.time()]
     callback = FakeCallback()
     key = Fernet.generate_key()

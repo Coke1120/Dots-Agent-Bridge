@@ -35,6 +35,16 @@ def test_signed_jwt_auth_and_role_not_claim_controlled(jwt_auth):
     assert p.owner == "alice" and p.role == "hermes" and p.scopes == frozenset(SCOPES["hermes"])
 
 
+def test_generic_agent_jwt_is_owner_scoped_and_cannot_impersonate_dot(jwt_auth):
+    auth, private, claims = jwt_auth
+    claims.update(client_id="agent", scope="bridge:submit bridge:read bridge:respond bridge:subscribe",
+                  owner_id="bob", role="dot")
+    principal = auth("Bearer " + jwt.encode(claims, private, algorithm="RS256"))
+    assert principal.owner == "alice"
+    assert principal.role == "agent"
+    assert principal.scopes == frozenset(SCOPES["agent"])
+
+
 @pytest.mark.parametrize("change", [{"iss": "https://evil.example"}, {"aud": "another-resource"},
                                   {"exp": 1}, {"iat": 9999999999}, {"nbf": 9999999999},
                                   {"sub": "unknown"}, {"client_id": "unregistered"}, {"scope": []}])

@@ -17,6 +17,7 @@ def test_discovery_and_role_tool_lists(env):
     init = rpc(env, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}, "alice-dot").json()["result"]
     assert init["capabilities"] == {"tools": {}, "events": {}}
     for who, expected in [("alice-hermes", {"submit_message", "get_request", "list_requests", "list_responses", "cancel_request", "wait_response"}),
+                          ("alice-agent", {"submit_message", "get_request", "list_requests", "list_responses", "cancel_request", "wait_response"}),
                           ("alice-dot", {"get_request", "list_requests", "list_responses", "record_response"})]:
         assert {t["name"] for t in rpc(env, "tools/list", who=who).json()["result"]["tools"]} == expected
     assert rpc(env, "events/list", who="alice-dot").json()["result"]["events"][0]["name"] == "request.created"
@@ -65,6 +66,29 @@ def test_owner_and_role_isolation(env):
     assert call(env, "list_requests", {}, "bob-dot")["requests"] == []
     assert "error" in submit(env, key="injected", owner_id="bob")
     assert "error" in submit(env, key="cross", conversation_id="missing")
+
+
+def test_generic_agent_openbot_style_round_trip_and_least_privilege(env):
+    # OpenBot receives the same MCP tools as the legacy Hermes submitter, not dot tools.
+    assert "error" in rpc(env, "events/list", who="alice-agent").json()
+    subscribe(env)
+    args = {"content": "synthetic OpenBot request", "idempotency_key": "openbot-key"}
+    request = call(env, "submit_message", args, "alice-agent")
+    assert request["state"] == "queued"
+    assert call(env, "submit_message", args, "alice-agent") == request
+    assert env["store"].deliver_once()
+    assert call(env, "get_request", {"request_id": request["id"]}, "alice-dot")["request"]["state"] == "delivered"
+    assert "error" in call(env, "record_response", {
+        "request_id": request["id"], "content": "forbidden", "state": "completed",
+        "expected_revision": 0, "idempotency_key": "bad"}, "alice-agent")
+    assert "error" in call(env, "get_request", {"request_id": request["id"]}, "bob-agent")
+    assert "error" in call(env, "cancel_request", {"request_id": request["id"]}, "bob-agent")
+    response = call(env, "record_response", {
+        "request_id": request["id"], "content": "synthetic dot reply", "state": "completed",
+        "expected_revision": 0, "idempotency_key": "reply-openbot"}, "alice-dot")
+    assert response["revision"] == 1
+    assert call(env, "list_responses", {"request_id": request["id"]}, "alice-agent")["responses"] == [response]
+    assert call(env, "get_request", {"request_id": request["id"]}, "alice-agent")["request"]["state"] == "completed"
 
 
 def test_submit_and_response_idempotency_and_stale_order(env):
