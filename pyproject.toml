@@ -1,6 +1,10 @@
 [project]
 name = "hermes-dots-bridge"
 version = "0.2.0"
+description = "Secure, OAuth-scoped MCP bridge connecting ChatGPT Dots with OpenBot, Hermes, and other AI agents through asynchronous messaging and events."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "PyJWT[crypto]>=2.10,<3", "cryptography>=44", "jsonschema>=4.23,<5", "dnspython>=2.7,<3"]
 [project.optional-dependencies]

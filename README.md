@@ -1,6 +1,8 @@
 # Dots Agent Bridge
 
-> This repository is still named `hermes-dots-bridge` and retains the existing Python package, MCP server identity, local service names and CLI for backwards compatibility. A repository rename is a separate, operator-reviewed rollout.
+Secure, OAuth-scoped MCP bridge connecting ChatGPT Dots with OpenBot, Hermes, and other AI agents through asynchronous messaging and events.
+
+> GitHub repository: [Coke1120/Dots-Agent-Bridge](https://github.com/Coke1120/Dots-Agent-Bridge). The Python package and CLI still use `hermes-dots-bridge` for backward compatibility. MCP server identity, local service labels, and OAuth resource identifiers remain unchanged.
 
 
 **Hermes has verified live round trips; OpenBot and generic MCP agents are supported by the new submitter role but have not yet been live-tested.** This is a private, asynchronous mailbox between an explicitly authorized MCP agent client (Hermes, OpenBot, etc.) and an existing ChatGPT dot. Long-term renewal/recovery validation remains pending. No Slack/Teams, extra LLM, browser cookies or undocumented ChatGPT endpoints.
@@ -17,7 +19,7 @@ The new **`agent`** OAuth role can submit, read, wait for and cancel mailbox req
 - [OpenBot connection / OAuth / local and Docker networking guide](docs/openbot.md), including reuse of the existing [`talk-to-dot` skill](skills/talk-to-dot/SKILL.md).
 - [OpenBot-only bootstrap policy](examples/agent-policy.example.json) or `hermes-dots-bridge init --directory /PRIVATE/bridge --submitter agent`.
 - [Phase 2: optional dot-initiated OpenBot task dispatch](docs/agent-dispatch-roadmap.md) (design only, **not implemented**).
-- [Naming/metadata migration guidance](docs/rename-plan.md) (no live resource, OAuth, API or GitHub repository rename in this PR).
+- [Repository identity and naming compatibility](docs/rename-plan.md) (GitHub repository has been renamed; runtime identifiers remain stable).
 
 An OpenBot **Hermes-provider** agent can also use the existing Hermes profile and `/talk-to-dot` skill, without granting OpenBot a separate OAuth client. For Codex, Claude, Gemini or other OpenBot providers use the native MCP connection and a dedicated `agent` grant.
 
@@ -83,6 +85,10 @@ Run a single process with a persistent writable volume only after completing tho
 ```
 
 A TLS reverse proxy must expose `/mcp` and the protected-resource metadata paths. Configure ingress request/body deadlines, concurrency/rate limits and sensitive-log redaction. Do not put SQLite on ephemeral serverless disk; horizontal workers are outside this MVP's operating contract. Nothing in this repository deploys the service automatically.
+
+## License
+
+Licensed under the [MIT License](LICENSE), Copyright (c) 2026 Coke1120. You may use, modify and redistribute the original project code under the terms of this license. Dependencies retain their respective licenses.
 
 ## References
 
