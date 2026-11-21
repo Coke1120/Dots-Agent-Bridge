@@ -18,7 +18,7 @@ The new **`agent`** OAuth role can submit, read, wait for and cancel mailbox req
 
 - [OpenBot connection / OAuth / local and Docker networking guide](docs/openbot.md), including reuse of the existing [`talk-to-dot` skill](skills/talk-to-dot/SKILL.md).
 - [OpenBot-only bootstrap policy](examples/agent-policy.example.json) or `hermes-dots-bridge init --directory /PRIVATE/bridge --submitter agent`.
-- [Phase 2: optional dot-initiated OpenBot task dispatch](docs/agent-dispatch-roadmap.md) (design only, **not implemented**).
+- A dot can also send a task to an explicitly allowed OpenBot agent and read that agent's answer. This optional direction uses OpenBot's Local scripts API. [Dot-to-OpenBot setup and acceptance check](docs/agent-dispatch.md)
 - [Repository identity and naming compatibility](docs/rename-plan.md) (GitHub repository has been renamed; runtime identifiers remain stable).
 
 An OpenBot **Hermes-provider** agent can also use the existing Hermes profile and `/talk-to-dot` skill, without granting OpenBot a separate OAuth client. For Codex, Claude, Gemini or other OpenBot providers use the native MCP connection and a dedicated `agent` grant.
@@ -68,6 +68,7 @@ The lock includes development/test dependencies. Tests use synthetic principals,
 | `wait_response` | Yes | Yes | No | `bridge:submit` + `bridge:read` |
 | `get_request`, `list_requests`, `list_responses` | Yes | Yes | Yes | `bridge:read` |
 | `record_response` | No | No | Yes | `bridge:respond` |
+| `list_dispatch_targets`, `dispatch_task`, `get_task`, `cancel_task` | No | No | Opt-in | `bridge:dispatch` and configured targets |
 | `events/list`, `events/subscribe`, `events/unsubscribe` | No | No | Yes | `bridge:subscribe` |
 
 Identity comes from a verified token and local operator policy, never an `owner_id` argument. Requested scopes cannot change the role. All clients' explicitly authorized identities map to the same private owner. **Important:** the owner scope is shared by Hermes, OpenBot and any other enabled submitter; submitters for the same owner can read each other's queued messages. OpenBot's per-agent MCP access settings help restrict which agents receive the server but are not a per-agent bridge identity or authorization boundary. There are no remote grant, approve, delete or administrator tools.

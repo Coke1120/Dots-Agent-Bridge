@@ -1,6 +1,6 @@
 # OpenBot and generic MCP agent integration
 
-**Status:** implemented Python submitter role and offline tests; no live OpenBot-to-dot round trip is claimed. The existing Hermes path remains supported. This guide describes **agent → dot → agent mailbox replies**, not dot-initiated execution of arbitrary OpenBot tasks.
+This guide covers **OpenBot → dot → OpenBot mailbox replies**. The submitter role has offline test coverage. A live OpenBot round trip is still unverified. For tasks initiated by a dot, see the [dot-to-OpenBot setup](agent-dispatch.md).
 
 ## What can be reused
 
@@ -59,7 +59,7 @@ Or start with [the disabled agent + dot example](../examples/agent-policy.exampl
 }
 ```
 
-Use the real, independently verified OAuth subject and client ID, and set both boolean flags to `true` **only after** reviewing the exact account and allowing that client to exchange mailbox messages. Do not authorize from email display names, request payloads, client metadata or self-asserted role claims. Keep policy and key files owned and mode 600, with the directory mode 700. `load_config(..., ready=True)` now requires exactly one active `dot` grant and **at least one** active `hermes` or `agent` grant, all mapping to one owner. Unrecognized active roles, duplicate identities and half-enabled grants fail closed.
+Use the real, independently verified OAuth subject and client ID, and set both boolean flags to `true` **only after** reviewing the exact account and allowing that client to exchange mailbox messages. Do not authorize from email display names, request payloads, client metadata or self-asserted role claims. Keep policy and key files owned and mode 600, with the directory mode 700. `load_config(..., ready=True)` requires exactly one active `dot` grant. For this mailbox flow, enable at least one `hermes` or `agent` submitter for the same owner. A dispatch-only deployment can instead use an explicitly enabled Dot with approved OpenBot targets. Unrecognized active roles, duplicate identities and half-enabled grants fail closed.
 
 Because the bridge scopes conversations by `owner` rather than by OAuth client or OpenBot agent, **all enabled submitter clients with the same owner can read each other's messages**. Do not grant untrusted OpenBot agents access to this MCP server. If you need per-Agent isolation, it requires a separately reviewed tenancy/design change; OpenBot's MCP access UI alone does not create a server-side identity for each agent.
 
@@ -83,7 +83,7 @@ Offline tests in this repository cover this role's discovery, JWT constraints an
 
 ## Limits and recovery
 
-- The bridge does not insert messages into idle OpenBot chats or task queues. Dot-initiated OpenBot work requires **Phase 2**, described in [the dispatch roadmap](agent-dispatch-roadmap.md).
+- To let the dot initiate work on an OpenBot agent, configure its separate dispatch scope and target allowlist. [Dot-to-OpenBot setup](agent-dispatch.md)
 - A failed/expired dot subscription does not replay missed events automatically. The owner can inspect retained requests and decide whether to recover them; do not blindly resubmit.
 - The bridge has no permission-approval, admin, arbitrary-command or remote execution tools. Keep it that way for Phase 1.
 - Hermes `bridge/direct.py` is intentionally tied to Hermes-private MCP transport and remains a separate, supported optional client path. OpenBot uses its own MCP client and OAuth proxy.

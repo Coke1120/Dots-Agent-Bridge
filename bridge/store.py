@@ -15,6 +15,7 @@ from .callback import CallbackError, headers, signing_key, validate_url
 
 TERMINAL = {"completed", "failed", "cancelled", "expired"}
 MAX_RESPONSES = 32
+DISPATCH_RETENTION = 7 * 86400
 REQUEST_RESPONSES = """FROM records WHERE kind='response' AND owner=?
                        AND json_extract(body, '$.request_id')=?"""
 
@@ -39,6 +40,8 @@ class Store:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, owner TEXT, body TEXT, PRIMARY KEY(kind,id))")
         self.db.execute("CREATE INDEX IF NOT EXISTS records_owner ON records(kind,owner)")
+        self.has_dispatch_table = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='dispatch_tasks'").fetchone() is not None
         self.db.execute("""CREATE INDEX IF NOT EXISTS response_request_revision ON records(
             owner, json_extract(body, '$.request_id'), json_extract(body, '$.revision')
         ) WHERE kind='response'""")
@@ -86,6 +89,8 @@ class Store:
     def maintain(self, now=None):
         if now is None:
             now = self.clock()
+        if self.has_dispatch_table:
+            self.maintain_dispatch(now)
         for r in self.all("request"):
             if r["created"] + 7 * 86400 <= now:
                 ids = self.db.execute("SELECT id " + REQUEST_RESPONSES, (r["owner"], r["id"])).fetchall()
@@ -114,6 +119,15 @@ class Store:
         for c in self.all("conversation"):
             if c["id"] not in active_conversations:
                 self.delete("conversation", c)
+
+    def maintain_dispatch(self, now):
+        # Enforce retention even after the operator disables the OpenBot integration.
+        self.db.execute("DELETE FROM dispatch_tasks WHERE created <= ?", (now - DISPATCH_RETENTION,))
+        self.db.execute("""UPDATE dispatch_tasks
+            SET state=CASE state WHEN 'queued' THEN 'expired' ELSE 'unknown' END,
+                reason=CASE state WHEN 'queued' THEN 'deadline_before_send' ELSE 'execution_unconfirmed' END,
+                due=NULL
+            WHERE due IS NOT NULL AND expires <= ?""", (now,))
 
     def submit(self, p, a):
         with self.transaction():
@@ -303,7 +317,7 @@ class Store:
             ttl = min(a.get("ttlMs") or 86400000, 86400000) / 1000
             encrypted = self.cipher.encrypt(secret.encode()).decode()
             sub = {"id": sid, "owner": p.owner, "subject": p.subject, "client": p.client,
-                   "scopes": sorted(p.scopes), "url": url, "secret": encrypted, "expires": now + ttl,
+                   "scopes": ["bridge:subscribe"], "url": url, "secret": encrypted, "expires": now + ttl,
                    "verified_until": verified_until, "active": True, "previous_secret": None, "rotate_until": 0}
             if old:
                 previous = self.cipher.decrypt(old["secret"].encode()).decode()
@@ -341,7 +355,9 @@ class Store:
             try:
                 s = self.get("subscription", e["subscription_id"], e["owner"])
                 r = self.get("request", e["request_id"], e["owner"])
-                p = Principal(s["subject"], s["client"], s["owner"], "dot", frozenset(s["scopes"]))
+                # Older subscriptions stored every scope on the token, including optional dispatch.
+                event_scopes = frozenset(s["scopes"]) & {"bridge:subscribe"}
+                p = Principal(s["subject"], s["client"], s["owner"], "dot", event_scopes)
                 self.authorize(p, "bridge:subscribe")
                 if not s["active"] or s["expires"] <= now or r["state"] in TERMINAL | {"needs_input"}:
                     raise Conflict("inactive")
