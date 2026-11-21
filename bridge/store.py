@@ -369,7 +369,8 @@ class Store:
                     s["active"] = False
                     self.put("subscription", s)
             else:
-                e["due"] = now + min(3600, 5 * 2 ** (e["attempts"] - 1))
+                # Start retry backoff after the callback finishes, not before the POST.
+                e["due"] = self.clock() + min(3600, 5 * 2 ** (e["attempts"] - 1))
             e["last_http_status"] = status
             self.put("outbox", e)
             return True
