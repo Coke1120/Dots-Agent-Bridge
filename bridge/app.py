@@ -47,6 +47,20 @@ def create_discovery_app(resource, issuer):
     return app
 
 
+async def delivery_worker(store, stop):
+    while not stop.is_set():
+        try:
+            if await run_in_threadpool(store.deliver_once):
+                continue
+        except Exception:
+            # Deliberately no exception strings, tokens, URLs, secrets or content.
+            logger.error("delivery_worker_iteration_failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=1)
+        except TimeoutError:
+            pass
+
+
 def create_app(store, auth, resource, issuer, run_worker=True):
     protocol = Protocol(store)
     waiter = Waiter()
@@ -56,22 +70,13 @@ def create_app(store, auth, resource, issuer, run_worker=True):
     @asynccontextmanager
     async def lifespan(app):
         stop = asyncio.Event()
-        async def worker():
-            while not stop.is_set():
-                try:
-                    await run_in_threadpool(store.deliver_once)
-                except Exception:
-                    # Deliberately no exception strings, tokens, URLs, secrets or content.
-                    logger.error("delivery_worker_iteration_failed")
-                try:
-                    await asyncio.wait_for(stop.wait(), timeout=1)
-                except TimeoutError:
-                    pass
-        task = asyncio.create_task(worker()) if run_worker else None
-        yield
-        stop.set()
-        if task:
-            await task
+        task = asyncio.create_task(delivery_worker(store, stop)) if run_worker else None
+        try:
+            yield
+        finally:
+            stop.set()
+            if task:
+                await task
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 

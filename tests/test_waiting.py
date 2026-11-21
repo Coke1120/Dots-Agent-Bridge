@@ -73,6 +73,38 @@ def test_wait_capacity_does_not_create_work(env):
     assert env['store'].all('request') == []
 
 
+def test_wait_and_list_read_indexed_pages_for_the_requested_mailbox_entry(env):
+    store = env['store']
+    target = submit(env)
+    other = submit(env, key='unrelated')
+    for request in (target, other):
+        for revision in range(1, 13):
+            store.respond(env['people']['alice-dot'], {
+                'request_id': request['id'], 'state': 'processing', 'content': 'Update',
+                'expected_revision': revision - 1, 'idempotency_key': f'update-{revision}'})
+
+    sender = env['people']['alice-hermes']
+    statements = []
+    store.db.set_trace_callback(statements.append)
+    try:
+        for method in (store.wait_snapshot, store.list_responses):
+            first = method(sender, {'request_id': target['id']})
+            assert [row['revision'] for row in first['responses']] == list(range(1, 11))
+            assert first['next_after_revision'] == 10
+            second = method(sender, {'request_id': target['id'], 'after_revision': 10})
+            assert [row['revision'] for row in second['responses']] == [11, 12]
+            assert second['next_after_revision'] is None
+            assert all(row['request_id'] == target['id'] for row in first['responses'] + second['responses'])
+            assert method(sender, {'request_id': target['id'], 'after_revision': 10**30})['responses'] == []
+    finally:
+        store.db.set_trace_callback(None)
+    queries = [sql for sql in statements if sql.startswith('SELECT') and "kind='response'" in sql]
+    assert queries
+    for sql in queries:
+        plan = store.db.execute('EXPLAIN QUERY PLAN ' + sql).fetchall()
+        assert any('SEARCH' in row[3] and 'response_request_revision' in row[3] for row in plan)
+
+
 def test_wait_snapshot_does_not_count_remapped_subscription(env):
     r = submit(env)
     env['store'].subscribe(env['people']['alice-dot'], subscription())

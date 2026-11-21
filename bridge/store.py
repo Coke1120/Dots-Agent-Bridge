@@ -14,6 +14,9 @@ from .auth import Denied, InsufficientScope, Principal
 from .callback import CallbackError, headers, signing_key, validate_url
 
 TERMINAL = {"completed", "failed", "cancelled", "expired"}
+MAX_RESPONSES = 32
+REQUEST_RESPONSES = """FROM records WHERE kind='response' AND owner=?
+                       AND json_extract(body, '$.request_id')=?"""
 
 
 class Conflict(Exception):
@@ -36,6 +39,9 @@ class Store:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, owner TEXT, body TEXT, PRIMARY KEY(kind,id))")
         self.db.execute("CREATE INDEX IF NOT EXISTS records_owner ON records(kind,owner)")
+        self.db.execute("""CREATE INDEX IF NOT EXISTS response_request_revision ON records(
+            owner, json_extract(body, '$.request_id'), json_extract(body, '$.revision')
+        ) WHERE kind='response'""")
         self.lock = threading.RLock()
         self.cipher, self.policy, self.callback = Fernet(key), policy, callback
         self.clock, self.limit = clock, limit
@@ -77,29 +83,33 @@ class Store:
         if not set(scopes) <= p.scopes:
             raise InsufficientScope(scopes)
 
-    def maintain(self):
-        now = self.clock()
-        purged = set()
+    def maintain(self, now=None):
+        if now is None:
+            now = self.clock()
         for r in self.all("request"):
             if r["created"] + 7 * 86400 <= now:
-                purged.add(r["id"])
+                ids = self.db.execute("SELECT id " + REQUEST_RESPONSES, (r["owner"], r["id"])).fetchall()
                 self.delete("request", r)
+                for (response_id,) in ids:
+                    self.delete("response", {"id": response_id})
                 continue
             if r["expires"] <= now and r["state"] not in TERMINAL:
                 r["state"] = "expired"
                 r["revision"] += 1
                 self.put("request", r)
-        if purged:
-            # Scan once for the whole batch, rather than once per purged request.
-            for response in self.all("response"):
-                if response["request_id"] in purged:
-                    self.delete("response", response)
-        for event in self.all("outbox"):
-            if event["created"] + 7 * 86400 <= now:
-                self.delete("outbox", event)
+        active_subscriptions = set()
         for sub in self.all("subscription"):
             if sub["expires"] + 86400 <= now:
                 self.delete("subscription", sub)
+            elif sub["active"] and sub["expires"] > now:
+                active_subscriptions.add(sub["id"])
+        for event in self.all("outbox"):
+            if event["created"] + 7 * 86400 <= now:
+                self.delete("outbox", event)
+            elif event["status"] == "pending" and event["subscription_id"] not in active_subscriptions:
+                # A later registration can reuse this ID, but cannot revive its old deliveries.
+                event["status"] = "stopped"
+                self.put("outbox", event)
         active_conversations = {r["conversation_id"] for r in self.all("request")}
         for c in self.all("conversation"):
             if c["id"] not in active_conversations:
@@ -164,13 +174,16 @@ class Store:
             # Bounded pages: explicit earlier cursor avoids silent context loss.
             before = a.get("before_sequence", r["sequence"] + 1)
             context = [x for x in context if x["sequence"] < before][-10:]
-            context_ids = {y["id"] for y in context}
-            responses = sorted([x for x in self.all("response", p.owner)
-                                if x["request_id"] in context_ids], key=lambda x: x["revision"])
-            latest = {x["request_id"]: x for x in responses}
+            latest = []
+            for entry in context:
+                row = self.db.execute("SELECT body " + REQUEST_RESPONSES +
+                                      " ORDER BY json_extract(body, '$.revision') DESC LIMIT 1",
+                                      (p.owner, entry["id"])).fetchone()
+                if row:
+                    latest.append(json.loads(row[0]))
             deliveries = [{k: e.get(k) for k in ("id", "status", "attempts", "last_http_status")}
                           for e in self.all("outbox", p.owner) if e["request_id"] == r["id"]]
-            return {"request": r, "context": context, "latest_responses": list(latest.values()), "deliveries": deliveries,
+            return {"request": r, "context": context, "latest_responses": latest, "deliveries": deliveries,
                     "next_before_sequence": context[0]["sequence"] if context and context[0]["sequence"] > 1 else None}
 
     def list_requests(self, p, a):
@@ -183,15 +196,23 @@ class Store:
             return {"requests": [{k: r[k] for k in ("id", "conversation_id", "sequence", "state", "revision")} for r in page],
                     "next_after": page[-1]["id"] if len(rows) > 20 else None}
 
+    def _response_page(self, request, after_revision):
+        responses = []
+        if after_revision < request["revision"]:
+            rows = self.db.execute("SELECT body " + REQUEST_RESPONSES +
+                                   " AND json_extract(body, '$.revision') > ?"
+                                   " ORDER BY json_extract(body, '$.revision') LIMIT 11",
+                                   (request["owner"], request["id"], after_revision))
+            responses = [json.loads(row[0]) for row in rows]
+        return {"responses": responses[:10],
+                "next_after_revision": responses[9]["revision"] if len(responses) > 10 else None}
+
     def list_responses(self, p, a):
         with self.transaction():
             self.authorize(p, "bridge:read")
             self.maintain()
-            self.get("request", a["request_id"], p.owner)
-            rows = sorted([x for x in self.all("response", p.owner)
-                           if x["request_id"] == a["request_id"] and x["revision"] > a.get("after_revision", 0)],
-                          key=lambda x: x["revision"])
-            return {"responses": rows[:10], "next_after_revision": rows[9]["revision"] if len(rows) > 10 else None}
+            request = self.get("request", a["request_id"], p.owner)
+            return self._response_page(request, a.get("after_revision", 0))
 
     def wait_snapshot(self, p, a):
         """Short transaction only; HTTP layer sleeps without holding SQLite lock."""
@@ -199,9 +220,7 @@ class Store:
             self.authorize(p, "bridge:submit", "bridge:read")
             self.maintain()
             r = self.get("request", a["request_id"], p.owner)
-            rows = sorted([x for x in self.all("response", p.owner)
-                           if x["request_id"] == r["id"] and x["revision"] > a.get("after_revision", 0)],
-                          key=lambda x: x["revision"])
+            page = self._response_page(r, a.get("after_revision", 0))
             subscriptions = 0
             for sub in self.all("subscription", p.owner):
                 if not sub["active"] or sub["expires"] <= self.clock():
@@ -214,9 +233,8 @@ class Store:
                 except Denied:
                     pass
             return {"request_id": r["id"], "conversation_id": r["conversation_id"],
-                    "state": r["state"], "revision": r["revision"], "responses": rows[:10],
-                    "next_after_revision": rows[9]["revision"] if len(rows) > 10 else None,
-                    "ready": bool(rows) or r["state"] in TERMINAL | {"needs_input"},
+                    "state": r["state"], "revision": r["revision"], **page,
+                    "ready": bool(page["responses"]) or r["state"] in TERMINAL | {"needs_input"},
                     "timed_out": False, "active_subscriptions": subscriptions}
 
     def respond(self, p, a):
@@ -225,14 +243,19 @@ class Store:
             self.maintain()
             r = self.get("request", a["request_id"], p.owner)
             digest = hashlib.sha256(canonical(a).encode()).hexdigest()
-            for old in self.all("response", p.owner):
-                if old["request_id"] == r["id"] and old["idempotency_key"] == a["idempotency_key"]:
-                    if old["digest"] != digest:
-                        raise Conflict("idempotency_key_reused")
-                    return old
+            row = self.db.execute("SELECT body " + REQUEST_RESPONSES +
+                                  " AND json_extract(body, '$.idempotency_key')=?",
+                                  (p.owner, r["id"], a["idempotency_key"])).fetchone()
+            if row:
+                old = json.loads(row[0])
+                if old["digest"] != digest:
+                    raise Conflict("idempotency_key_reused")
+                return old
             if r["state"] in TERMINAL | {"needs_input"} or r["revision"] != a["expected_revision"]:
                 raise Conflict("stale_or_terminal_request")
-            if len([x for x in self.all("response", p.owner) if x["request_id"] == r["id"]]) >= 32:
+            # On an open request each revision is a response. Older stores could
+            # already have 32 progress replies; allow their single closing reply too.
+            if a["state"] == "processing" and r["revision"] >= MAX_RESPONSES - 1:
                 raise Conflict("response_capacity")
             r["state"], r["revision"] = a["state"], r["revision"] + 1
             response = {"id": str(uuid.uuid4()), "owner": p.owner, "request_id": r["id"],
@@ -258,14 +281,20 @@ class Store:
     def subscribe(self, p, a):
         with self.transaction():
             self.authorize(p, "bridge:subscribe")
-            self.maintain()
+            now = self.clock()
+            self.maintain(now)
             secret, url = a["delivery"]["secret"], a["delivery"]["url"]
             signing_key(secret)
             validate_url(url, self.callback.allowed_hosts)
-            sid, now = self.subscription_id(p, a), self.clock()
-            old = next((s for s in self.all("subscription", p.owner) if s["id"] == sid), None)
-            if not old and len(self.all("subscription", p.owner)) >= 4:
+            sid = self.subscription_id(p, a)
+            subscriptions = self.all("subscription", p.owner)
+            old = next((s for s in subscriptions if s["id"] == sid), None)
+            active = [s for s in subscriptions if s["active"] and s["expires"] > now]
+            if old not in active and len(active) >= 4:
                 raise Conflict("subscription_capacity")
+            if old is None and len(subscriptions) >= 4:
+                retired = (s for s in subscriptions if s not in active)
+                self.delete("subscription", min(retired, key=lambda s: (s["expires"], s["id"])))
             if not old or old["verified_until"] <= now or not old["active"]:
                 self.callback.verify(url, secret, sid, now)
                 verified_until = now + 300

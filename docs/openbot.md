@@ -12,11 +12,21 @@ If the OpenBot agent **is Hermes itself**, using OpenBot's Hermes provider (`her
 
 ## 1. Deploy using a reachable, authenticated resource URL
 
-- Keep the existing OAuth issuer, JWKS URL, dot subscription, persistent SQLite database, encryption key and `owner` mapping. Back up sensitive state through the current operator process before migration.
-- The MCP server and protected-resource metadata must be reachable at a **stable URL from the OpenBot host**. Use an HTTPS endpoint with valid TLS trust, including the `/mcp` path and both `/.well-known/oauth-protected-resource*` paths.
-- A local loopback bridge binds only `127.0.0.1`. **Inside OpenBot Docker, `127.0.0.1` means the container, not the Mac mini**. Do not change the bridge to `0.0.0.0`, disable TLS verification or expose SQLite to make it reachable. Use an explicitly reviewed HTTPS reverse proxy/ingress that can reach the loopback listener, or deploy an independent properly hosted bridge. The operator must verify metadata and OAuth token **audience** for the exact external resource URL.
-- Do **not** assume a ChatGPT Secure MCP Tunnel URL is directly routable by OpenBot. OpenBot and ChatGPT must use an actually supported, reachable public/loopback audience. The existing local bridge supports one local audience and one explicitly pinned tunnel audience; if a third distinct audience is needed, design and review that extension separately.
-- Keep the bridge single-process with a persistent, private database and private TLS/key files. No installer or account setting in this repository changes your host automatically.
+**OpenBot on the same host** can use the local CLI's trusted HTTPS loopback resource. That CLI advertises its loopback address in both the OAuth challenge and protected-resource metadata. Its optional `tunnel_resource` adds an accepted token audience for the ChatGPT tunnel. Forwarding the CLI through an ordinary reverse proxy still sends OAuth clients to loopback.
+
+**OpenBot in Docker or on another machine** should use the [fixed-domain HTTPS deployment](macos-local.md#stable-public-https-alternative). Inside the container, `127.0.0.1` points back to the container. Choose one canonical HTTPS resource such as `https://bridge.example.com/mcp` that OpenBot, the dot and any Hermes client can reach.
+
+1. Set `BRIDGE_RESOURCE` to that exact URL in the [production server environment](../examples/server.env.example). Configure the same OAuth API audience at the issuer and use the canonical URL in each client's MCP settings. Clients with a grant for the previous resource need tokens for the new audience.
+2. When migrating an existing bridge, stop the old service and its automatic restart before switching. Back up the SQLite database and encryption key using the [migration guide](migration.md), and keep the same key, policy, owner mapping, client claim, issuer, JWKS URL and verified callback hosts. Start a single `bridge.app:production_app` worker on the proxy host's loopback interface. Run only one service against this database, including during rollback. See the [production startup command](../README.md#before-connecting-real-accounts).
+3. Configure the HTTPS reverse proxy to forward `/mcp`, `/.well-known/oauth-protected-resource`, and `/.well-known/oauth-protected-resource/mcp` to that worker. From the OpenBot container or remote host, check all three URLs with normal TLS verification, substituting your domain.
+
+   ```sh
+   curl -sS -D - -o /dev/null https://bridge.example.com/mcp
+   curl -fsS https://bridge.example.com/.well-known/oauth-protected-resource
+   curl -fsS https://bridge.example.com/.well-known/oauth-protected-resource/mcp
+   ```
+
+   The first request should return HTTP 401 with `WWW-Authenticate` pointing to `https://bridge.example.com/.well-known/oauth-protected-resource`. Both metadata responses should return HTTP 200, identify the same canonical `resource` including `/mcp`, and list your verified issuer under `authorization_servers`. After client sign-in, confirm the dot's event subscription and the end-to-end reply in step 5.
 
 ## 2. Register OpenBot as a distinct OAuth client
 
@@ -30,7 +40,7 @@ The **dot** must retain its own distinct OAuth client and `dot` role (`bridge:re
 
 ## 3. Authorize the submitter explicitly
 
-For a fresh, OpenBot-only setup, generate placeholder files:
+For a fresh, OpenBot-only setup, generate placeholder files. For the fixed-domain deployment, point `BRIDGE_POLICY` to the completed policy file. The generated `config.json` belongs to the local CLI.
 
 ```sh
 hermes-dots-bridge init --directory /PRIVATE/bridge --submitter agent
