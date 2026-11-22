@@ -9,8 +9,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from .auth import AuthenticationRequired, Denied, InsufficientScope, JWTAuth, Policy, SCOPES
+from .auth import AuthenticationRequired, Denied, DISPATCH_SCOPE, InsufficientScope, JWTAuth, Policy, SCOPES
 from .callback import Callback, CallbackError, subscription_diagnostic
+from .dispatch import DispatchQueue
+from .openbot import OpenBot
 from .protocol import Protocol
 from .wire import MODERN, WireError, complete, request_version
 from .store import Conflict, Store
@@ -20,22 +22,26 @@ logger = logging.getLogger(__name__)
 MAX_BODY = 65536
 
 
-def add_metadata_routes(app, resource, issuer):
+def add_metadata_routes(app, resource, issuer, dispatch_enabled=False):
+    scopes = set.union(*SCOPES.values())
+    if dispatch_enabled:
+        scopes.add(DISPATCH_SCOPE)
+
     @app.get("/.well-known/oauth-protected-resource")
     @app.get("/.well-known/oauth-protected-resource/mcp")
     def metadata():
         return {"resource": resource, "authorization_servers": [issuer],
-                "scopes_supported": sorted(set.union(*SCOPES.values())), "bearer_methods_supported": ["header"]}
+                "scopes_supported": sorted(scopes), "bearer_methods_supported": ["header"]}
 
 
-def create_discovery_app(resource, issuer):
+def create_discovery_app(resource, issuer, dispatch_enabled=False):
     """Bootstrap only public metadata. No store, credentials, tools or event worker."""
     from .auth import validate_https, validate_local_resource
     validate_local_resource(resource)
     validate_https(issuer)
     origin = resource.removesuffix("/mcp")
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    add_metadata_routes(app, resource, issuer)
+    add_metadata_routes(app, resource, issuer, dispatch_enabled)
 
     @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
     async def deny_all(request: Request):
@@ -48,9 +54,13 @@ def create_discovery_app(resource, issuer):
 
 
 async def delivery_worker(store, stop):
+    await run_worker_loop(stop, store.deliver_once)
+
+
+async def run_worker_loop(stop, step, *args):
     while not stop.is_set():
         try:
-            if await run_in_threadpool(store.deliver_once):
+            if await run_in_threadpool(step, *args):
                 continue
         except Exception:
             # Deliberately no exception strings, tokens, URLs, secrets or content.
@@ -61,8 +71,10 @@ async def delivery_worker(store, stop):
             pass
 
 
-def create_app(store, auth, resource, issuer, run_worker=True):
-    protocol = Protocol(store)
+def create_app(store, auth, resource, issuer, run_worker=True, *, openbot_directory=None):
+    adapter = OpenBot(openbot_directory) if openbot_directory else None
+    dispatch_queue = DispatchQueue(store) if adapter else None
+    protocol = Protocol(store, dispatch_queue)
     waiter = Waiter()
     origin = urlsplit(resource).scheme + "://" + urlsplit(resource).netloc
     metadata_url = origin + "/.well-known/oauth-protected-resource"
@@ -70,17 +82,20 @@ def create_app(store, auth, resource, issuer, run_worker=True):
     @asynccontextmanager
     async def lifespan(app):
         stop = asyncio.Event()
-        task = asyncio.create_task(delivery_worker(store, stop)) if run_worker else None
+        tasks = []
+        if run_worker:
+            tasks.append(asyncio.create_task(delivery_worker(store, stop)))
+            if dispatch_queue:
+                tasks.append(asyncio.create_task(run_worker_loop(stop, dispatch_queue.work_once, adapter)))
         try:
             yield
         finally:
             stop.set()
-            if task:
-                await task
+            await asyncio.gather(*tasks)
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
-    add_metadata_routes(app, resource, issuer)
+    add_metadata_routes(app, resource, issuer, dispatch_enabled=adapter is not None)
 
     @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
     async def mcp(request: Request):
@@ -174,4 +189,5 @@ def production_app():
     auth = JWTAuth(values["OAUTH_ISSUER"], values["BRIDGE_RESOURCE"], values["OAUTH_JWKS_URL"], policy, os.environ.get("OAUTH_CLIENT_CLAIM", "client_id"))
     callback = Callback(values["BRIDGE_CALLBACK_HOSTS"].split(","))
     store = Store(values["BRIDGE_DB"], values["BRIDGE_ENCRYPTION_KEY"], policy, callback)
-    return create_app(store, auth, values["BRIDGE_RESOURCE"], values["OAUTH_ISSUER"])
+    return create_app(store, auth, values["BRIDGE_RESOURCE"], values["OAUTH_ISSUER"],
+                      openbot_directory=os.environ.get("BRIDGE_OPENBOT_AUTOMATION_DIR"))

@@ -5,10 +5,12 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import jwt
+from .openbot import valid_id
 
 SCOPES = {"hermes": {"bridge:submit", "bridge:read"},
           "agent": {"bridge:submit", "bridge:read"},
           "dot": {"bridge:read", "bridge:respond", "bridge:subscribe"}}
+DISPATCH_SCOPE = "bridge:dispatch"
 
 
 class Denied(Exception):
@@ -41,7 +43,7 @@ class Policy:
     def __init__(self, path: str):
         self.path = Path(path)
 
-    def resolve(self, subject: str, client: str, scopes) -> Principal:
+    def _grant(self, subject, client):
         try:
             entries = json.loads(self.path.read_text())["grants"]
             matches = [g for g in entries if g["subject"] == subject and g["client_id"] == client]
@@ -52,9 +54,36 @@ class Policy:
                 raise Denied()
             if g["role"] not in SCOPES or not isinstance(g["owner"], str) or not g["owner"]:
                 raise Denied()
-            return Principal(subject, client, g["owner"], g["role"], frozenset(scopes) & SCOPES[g["role"]])
+            return entries, g
         except (OSError, ValueError, KeyError, TypeError):
             raise Denied() from None
+
+    @staticmethod
+    def _targets(entries, grant):
+        targets = grant.get("dispatch_targets", [])
+        if (grant["role"] != "dot" or not isinstance(targets, list) or len(targets) > 32
+                or not all(valid_id(t) for t in targets)):
+            return ()
+        # An OpenBot agent has its own conversation history. Never share it across owners.
+        other_targets = {t for g in entries if g.get("owner") != grant["owner"] and g.get("role") == "dot"
+                         and g.get("enabled") is True and g.get("queue_authorized") is True
+                         and isinstance(g.get("dispatch_targets"), list)
+                         for t in g["dispatch_targets"] if isinstance(t, str)}
+        return tuple(sorted(set(targets) - other_targets))
+
+    def resolve(self, subject: str, client: str, scopes) -> Principal:
+        entries, grant = self._grant(subject, client)
+        requested = frozenset(scopes)
+        allowed = SCOPES[grant["role"]] & requested
+        if DISPATCH_SCOPE in requested and self._targets(entries, grant):
+            allowed.add(DISPATCH_SCOPE)
+        return Principal(subject, client, grant["owner"], grant["role"], frozenset(allowed))
+
+    def dispatch_targets(self, p):
+        entries, grant = self._grant(p.subject, p.client)
+        if p.role != "dot" or p.owner != grant["owner"] or DISPATCH_SCOPE not in p.scopes:
+            raise Denied()
+        return self._targets(entries, grant)
 
     def recheck(self, p: Principal):
         current = self.resolve(p.subject, p.client, p.scopes)

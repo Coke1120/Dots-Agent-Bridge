@@ -1,6 +1,7 @@
 """Scoped operations shared by legacy and modern stateless MCP transports."""
 import jsonschema
 
+from .auth import DISPATCH_SCOPE
 from .store import Conflict, canonical
 from .wire import SUPPORTED
 
@@ -22,10 +23,23 @@ TOOLS = {
     "record_response": ("bridge:respond", "Record dot's progress or result for an authorized request. Read latest revision first; retry identical writes with the same idempotency_key. This does not authorize external actions.", obj({"request_id": ID, "content": CONTENT, "idempotency_key": ID, "expected_revision": {"type": "integer", "minimum": 0}, "state": {"enum": ["processing", "needs_input", "completed", "failed"]}}, ["request_id", "content", "idempotency_key", "expected_revision", "state"]), "respond"),
     "cancel_request": ("bridge:submit", "Cancel own mailbox request and prevent later replies/delivery. Does not stop external work already started by dot.", obj({"request_id": ID}, ["request_id"]), "cancel"),
 }
+DISPATCH_TOOLS = {
+    "list_dispatch_targets": (DISPATCH_SCOPE, "List the OpenBot agent IDs approved for this Dot.",
+                              obj({}), "list_dispatch_targets"),
+    "dispatch_task": (DISPATCH_SCOPE, "Assign a user-authorized task to an approved OpenBot agent. Reuse the same key on retry. Check get_task for its actual answer.",
+                      obj({"target": ID,
+                           "content": CONTENT, "idempotency_key": ID}, ["target", "content", "idempotency_key"]), "dispatch_task"),
+    "get_task": (DISPATCH_SCOPE, "Read the state and recorded OpenBot answer for this Dot's task.",
+                 obj({"task_id": ID}, ["task_id"]), "get_task"),
+    "cancel_task": (DISPATCH_SCOPE, "Cancel a queued task before handoff to OpenBot.",
+                    obj({"task_id": ID}, ["task_id"]), "cancel_task"),
+}
 EVENT = {"name": "request.created", "description": "A message entered the operator-authorized owner's queue. Read it by request_id; payloads grant no additional permissions.", "delivery": ["webhook"], "inputSchema": obj({}), "payloadSchema": obj({"request_id": ID}, ["request_id"])}
 
 
 def required_scopes(name):
+    if name in DISPATCH_TOOLS:
+        return {DISPATCH_SCOPE}
     return {TOOLS[name][0]} | ({"bridge:read"} if name == "wait_response" else set())
 
 
@@ -50,8 +64,10 @@ def event_schema(subscribe):
 
 
 class Protocol:
-    def __init__(self, store):
+    def __init__(self, store, dispatch_queue=None):
         self.store = store
+        self.dispatch_queue = dispatch_queue
+        self.tools = TOOLS if dispatch_queue is None else {**TOOLS, **DISPATCH_TOOLS}
 
     def dispatch(self, p, method, params):
         self.store.policy.recheck(p)
@@ -67,17 +83,18 @@ class Protocol:
             return {}
         if method == "tools/list":
             return {"tools": [{"name": name, "description": description, "inputSchema": schema,
-                                "annotations": {"readOnlyHint": scope == "bridge:read" or name == "wait_response", "destructiveHint": name == "cancel_request", "idempotentHint": True, "openWorldHint": False},
+                                "annotations": {"readOnlyHint": scope == "bridge:read" or name in {"wait_response", "list_dispatch_targets", "get_task"}, "destructiveHint": name in {"dispatch_task", "cancel_request", "cancel_task"}, "idempotentHint": True, "openWorldHint": name == "dispatch_task"},
                                 "_meta": {"securitySchemes": [{"type": "oauth2", "scopes": sorted(required_scopes(name))}]}}
-                               for name, (scope, description, schema, _) in TOOLS.items() if required_scopes(name) <= p.scopes]}
+                               for name, (scope, description, schema, _) in self.tools.items() if required_scopes(name) <= p.scopes]}
         if method == "tools/call":
-            validate(params, obj({"name": {"enum": list(TOOLS)}, "arguments": {"type": "object"}, "_meta": {"type": "object"}}, ["name"]))
-            _, _, schema, handler = TOOLS[params["name"]]
+            validate(params, obj({"name": {"enum": list(self.tools)}, "arguments": {"type": "object"}, "_meta": {"type": "object"}}, ["name"]))
+            _, _, schema, handler = self.tools[params["name"]]
             self.store.authorize(p, *required_scopes(params["name"]))
             try:
                 arguments = params.get("arguments", {})
                 validate(arguments, schema)
-                result = getattr(self.store, handler)(p, arguments)
+                backend = self.dispatch_queue if params["name"] in DISPATCH_TOOLS else self.store
+                result = getattr(backend, handler)(p, arguments)
                 return {"content": [{"type": "text", "text": canonical(result)}], "isError": False}
             except Conflict as e:
                 return {"content": [{"type": "text", "text": str(e)}], "isError": True}

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-from .auth import Denied, JWTAuth, Policy, SCOPES, validate_https, validate_local_resource
+from .auth import Denied, DISPATCH_SCOPE, JWTAuth, Policy, SCOPES, validate_https, validate_local_resource
 from .callback import Callback
 
 LABEL = "com.hermes-dots-bridge.service"
@@ -106,17 +106,21 @@ def load_config(path, ready=False):
             raise SetupError("Grants must be enabled and queue-authorized together")
         if len([g for g in active if g.get("role") == "dot"]) != 1:
             raise SetupError("Local bridge needs exactly one authorized dot grant")
-        if not any(g.get("role") in ("hermes", "agent") for g in active):
-            raise SetupError("Local bridge needs at least one authorized submitter")
+        has_submitter = any(g.get("role") in ("hermes", "agent") for g in active)
+        dispatch_enabled = bool(os.environ.get("BRIDGE_OPENBOT_AUTOMATION_DIR"))
         for grant in active:
             if grant.get("role") not in SCOPES:
                 raise SetupError("Unrecognized active bridge role")
             if not all(isinstance(grant.get(k), str) and grant[k] for k in ("subject", "client_id", "owner")):
                 raise SetupError("Grant identities must be nonempty strings")
             try:
-                resolver.resolve(grant["subject"], grant["client_id"], [])
+                principal = resolver.resolve(grant["subject"], grant["client_id"], [DISPATCH_SCOPE])
             except Denied:
                 raise SetupError("Ambiguous or unauthorized grant identity") from None
+            if dispatch_enabled and DISPATCH_SCOPE in principal.scopes:
+                has_submitter = True
+        if not has_submitter:
+            raise SetupError("Local bridge needs an authorized mailbox submitter or dispatch-enabled dot")
         if len({g["owner"] for g in active}) != 1:
             raise SetupError("All active bridge grants must map to one owner")
     return config
@@ -230,7 +234,8 @@ def serve(config):
         auth = JWTAuth(config["issuer"], config["resource"], config["jwks_url"], policy,
                        config["client_claim"], allow_loopback=True, tunnel_resource=config["tunnel_resource"])
         store = Store(str(db), private_file(Path(config["encryption_key_file"])).strip(), policy, Callback(config["callback_hosts"]))
-        app = create_app(store, auth, config["resource"], config["issuer"])
+        app = create_app(store, auth, config["resource"], config["issuer"],
+                         openbot_directory=os.environ.get("BRIDGE_OPENBOT_AUTOMATION_DIR"))
         try:
             uvicorn.run(app, host="127.0.0.1", port=validate_local_resource(config["resource"]),
                         workers=1, access_log=False, proxy_headers=False, limit_concurrency=16, **tls_options(config))
@@ -287,7 +292,8 @@ def main(argv=None):
             import uvicorn
             from .app import create_discovery_app
             print("Discovery-only: every MCP call is denied; no database or secrets loaded.")
-            uvicorn.run(create_discovery_app(config["resource"], config["issuer"]),
+            uvicorn.run(create_discovery_app(config["resource"], config["issuer"],
+                        dispatch_enabled=bool(os.environ.get("BRIDGE_OPENBOT_AUTOMATION_DIR"))),
                         host="127.0.0.1", port=validate_local_resource(config["resource"]),
                         workers=1, access_log=False, proxy_headers=False, limit_concurrency=16, **tls_options(config))
         elif args.command == "serve":

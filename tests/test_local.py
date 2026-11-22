@@ -90,6 +90,22 @@ def test_local_check_and_templates_are_passive(local_config, capsys):
     assert '<key>ProgramArguments</key>' in capsys.readouterr().out
 
 
+def test_dispatch_only_local_config_needs_explicit_target_and_service_opt_in(local_config, monkeypatch):
+    policy_path = local_config.parent / 'policy.json'
+    dot = next(g for g in json.loads(policy_path.read_text())['grants'] if g['role'] == 'dot')
+    dot['dispatch_targets'] = ['agent-1']
+    policy_path.write_text(json.dumps({'grants': [dot]}))
+    monkeypatch.delenv('BRIDGE_OPENBOT_AUTOMATION_DIR', raising=False)
+    with pytest.raises(SetupError):
+        load_config(local_config, ready=True)
+    monkeypatch.setenv('BRIDGE_OPENBOT_AUTOMATION_DIR', str(local_config.parent / 'automation'))
+    assert load_config(local_config, ready=True)['resource'].endswith('/mcp')
+    dot['dispatch_targets'] = []
+    policy_path.write_text(json.dumps({'grants': [dot]}))
+    with pytest.raises(SetupError):
+        load_config(local_config, ready=True)
+
+
 @pytest.mark.parametrize('field', ['config.json', 'policy.json', 'signing-secrets.key'])
 def test_private_permissions_required(local_config, field):
     (local_config.parent / field).chmod(0o644)
