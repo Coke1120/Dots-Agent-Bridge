@@ -1,6 +1,6 @@
 [project]
 name = "hermes-dots-bridge"
-version = "0.2.1"
+version = "0.3.0"
 description = "Secure, OAuth-scoped MCP bridge connecting ChatGPT Dots with OpenBot, Hermes, and other AI agents through asynchronous messaging and events."
 readme = "README.md"
 license = "MIT"
