@@ -99,10 +99,17 @@ def test_ambiguous_post_retries_with_same_key_after_restart_then_only_polls(env,
     try:
         reopened = DispatchQueue(store)
         assert not reopened.work_once(adapter)
-        for delay in (ATTEMPT_LEASE, POLL_INTERVAL, 2, POLL_INTERVAL):
+        ref = {"task_id": task["task_id"]}
+        for delay, state, reason in (
+            (ATTEMPT_LEASE, "running", None),
+            (POLL_INTERVAL, "running", "openbot_unavailable"),
+            (2, "running", None),
+            (POLL_INTERVAL, "completed", None),
+        ):
             env["now"][0] += delay
             assert reopened.work_once(adapter)
-        result = reopened.get_task(dot, {"task_id": task["task_id"]})
+            result = reopened.get_task(dot, ref)
+            assert (result["state"], result["reason"]) == (state, reason)
         assert result["result"] == "Recovered answer"
         assert sends == [task["task_id"]] * 2 and polls == ["receipt"] * 3
     finally:
@@ -124,6 +131,8 @@ def test_slow_target_retry_does_not_starve_other_work_and_expiry_does_not_resend
 
     adapter = Adapter()
     assert queue.work_once(adapter)
+    retry = queue.get_task(dot, {"task_id": slow["task_id"]})
+    assert (retry["state"], retry["reason"]) == ("submitting", "openbot_unavailable")
     assert queue.work_once(adapter)
     assert sent == ["writer", "reader"]
     queued = queue.dispatch_task(dot, message("pending"))

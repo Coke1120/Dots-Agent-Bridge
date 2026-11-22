@@ -158,6 +158,7 @@ class DispatchQueue:
                 else:
                     state, reason = "unknown", "openbot_invalid_response"
         except OpenBotError as error:
+            reason = error.reason
             if error.retryable:
                 failures = task["failures"] + 1
                 next_delay = min(60, 2 ** min(6, failures))
@@ -166,7 +167,6 @@ class DispatchQueue:
                 # that OpenBot never started the original delivery.
                 rejected = task["state"] == "queued" and error.reason in DEFINITE_REJECTIONS
                 state = "failed" if rejected else "unknown"
-                reason = error.reason
 
         with self.store.transaction():
             now = self.store.clock()

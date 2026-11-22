@@ -30,6 +30,8 @@ Blank messages and messages that exceed OpenBot's 32 KiB encoded request limit a
 
 The worker persists the task before sending it. It uses the task UUID as the OpenBot message's `clientMessageId`, retains the returned delivery ID and reads that delivery for the agent's answer. OpenBot deduplicates a message key for 24 hours. The bridge limits its dispatch window to one hour and retains task history for seven days. Task keys belong to the initiating dot's owner, subject and OAuth client. [OpenBot message and delivery contract](https://github.com/nightly-labs/openbot/blob/3554f248a01ad726a8dafefa0e0701a0e1bc44f4/docs/automation.md#L155-L177)
 
+If a task is `submitting` or `running` with reason `openbot_unavailable`, the bridge is retrying automatically. Keep checking the same task ID; do not submit it again. The reason clears after the next successful contact with OpenBot.
+
 Report an answer to the user when `get_task` returns `state: completed` with text in `result`. If tracking ends with `unknown`, check the target agent's conversation before sending new work. A task may already have run. A task that expires before the first send can be submitted again as new work. Removing a target from the Dot's policy stops future handoffs to that target. Turning off the adapter pauses delivery; previously queued tasks still within their deadline can resume if it is enabled again. Purging bridge task records does not clear OpenBot's own conversation history.
 
 ## End-to-end acceptance check
