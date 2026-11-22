@@ -2,6 +2,8 @@
 
 This guide covers **OpenBot → dot → OpenBot mailbox replies**. The submitter role has offline test coverage. A live OpenBot round trip is still unverified. For tasks initiated by a dot, see the [dot-to-OpenBot setup](agent-dispatch.md).
 
+Want a **Dots** entry in the OpenBot agent list? See the [importable Dots wrapper](openbot-dots-wrapper.md).
+
 ## What can be reused
 
 The existing `/mcp` endpoint exposes the same legacy and modern MCP protocols, durable SQLite request/response queue, `request.created` MCP Events webhook to the dot, OAuth resource metadata and the current callback retry logic. The dot integration does **not** need a new event or authorization method.
