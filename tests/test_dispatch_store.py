@@ -220,3 +220,17 @@ def test_disabled_restart_purges_tasks_but_preserves_target_history_ownership(en
         assert enabled.dispatch_task(bob, message(target="fresh"))["state"] == "queued"
     finally:
         restarted.db.close()
+
+
+@pytest.mark.parametrize("content,reason", [
+    ("  \t\n", "openbot_invalid_request"),
+    ("report " + "\u001f" * 7993, "openbot_message_too_large"),
+])
+def test_dispatch_rejects_unsendable_message_without_creating_a_task(dispatch, content, reason):
+    queue, dot, _ = dispatch
+    with pytest.raises(Conflict, match=f"^{reason}$"):
+        queue.dispatch_task(dot, {**message(), "content": content})
+    assert queue.db.execute("SELECT count(*) FROM dispatch_tasks").fetchone()[0] == 0
+    assert queue.db.execute("SELECT count(*) FROM dispatch_target_owners").fetchone()[0] == 0
+    accepted = queue.dispatch_task(dot, {**message(), "content": "🙂" * 8000})
+    assert accepted["state"] == "queued"

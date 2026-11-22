@@ -76,6 +76,19 @@ def _raise_status(status):
     raise OpenBotError(reason.get(status, "openbot_invalid_response"))
 
 
+def build_message_body(task_id, content):
+    if not isinstance(content, str) or not content.strip():
+        raise OpenBotError("openbot_invalid_request")
+    try:
+        body = json.dumps({"text": content, "clientMessageId": task_id},
+                          ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    except UnicodeError:
+        raise OpenBotError("openbot_invalid_request") from None
+    if len(body) > 32 * 1024:
+        raise OpenBotError("openbot_message_too_large")
+    return body
+
+
 class OpenBot:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -130,15 +143,9 @@ class OpenBot:
             connection.close()
 
     def send(self, target, task_id, content):
-        if not valid_id(target) or not valid_id(task_id) or not isinstance(content, str) or not content.strip():
+        if not valid_id(target) or not valid_id(task_id):
             raise OpenBotError("openbot_invalid_request")
-        try:
-            body = json.dumps({"text": content, "clientMessageId": task_id},
-                              ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        except UnicodeError:
-            raise OpenBotError("openbot_invalid_request") from None
-        if len(body) > 32 * 1024:
-            raise OpenBotError("openbot_message_too_large")
+        body = build_message_body(task_id, content)
         result = self._request("POST", f"/v1/agents/{quote(target, safe='')}/messages", 202, body)
         deliveries = result.get("deliveries")
         if not valid_id(result.get("messageId")) or not isinstance(deliveries, list):

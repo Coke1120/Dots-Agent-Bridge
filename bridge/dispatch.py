@@ -3,7 +3,7 @@ import sqlite3
 import uuid
 
 from .auth import DISPATCH_SCOPE, Denied, Principal
-from .openbot import OpenBotError
+from .openbot import OpenBotError, build_message_body
 from .store import Conflict
 
 
@@ -80,10 +80,14 @@ class DispatchQueue:
                 if existing["target"] != a["target"] or existing["content"] != a["content"]:
                     raise Conflict("idempotency_key_reused")
                 return self._public(existing)
+            task_id = str(uuid.uuid4())
+            try:
+                build_message_body(task_id, a["content"])
+            except OpenBotError as error:
+                raise Conflict(error.reason) from None
             count = self.db.execute("SELECT count(*) FROM dispatch_tasks WHERE owner=?", (p.owner,)).fetchone()[0]
             if count >= self.store.limit:
                 raise Conflict("queue_capacity")
-            task_id = str(uuid.uuid4())
             # OpenBot retains the target's own chat history beyond our task retention.
             self.db.execute("INSERT OR IGNORE INTO dispatch_target_owners(target,owner) VALUES (?,?)",
                             (a["target"], p.owner))
